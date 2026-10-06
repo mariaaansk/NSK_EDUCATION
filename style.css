@@ -1,0 +1,796 @@
+```css
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --primary: #172033;
+    --primary-light: #243452;
+    --blue: #2563eb;
+    --blue-light: #eff6ff;
+    --background: #f4f6f9;
+    --white: #fff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e1e5eb;
+    --danger: #c62828;
+    --danger-light: #fff1f1;
+    --success: #18794e;
+    --radius: 12px;
+    --shadow: 0 4px 18px rgba(23, 32, 51, .07);
+}
+
+html,
+body {
+    min-height: 100%;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: var(--background);
+    color: var(--text);
+    line-height: 1.5;
+    text-align: left;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid rgba(37, 99, 235, .18);
+    outline-offset: 1px;
+}
+
+#app {
+    min-height: 100vh;
+}
+
+/* =========================
+   ACCUEIL
+   ========================= */
+
+.home {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 30px;
+    background: var(--background);
+    text-align: center;
+}
+
+.home h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 8px;
+}
+
+.home p {
+    color: var(--muted);
+    margin-bottom: 30px;
+}
+
+.home-buttons {
+    width: 100%;
+    max-width: 380px;
+}
+
+.home-buttons button {
+    width: 100%;
+    padding: 14px 18px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+}
+
+/* =========================
+   CONNEXION
+   ========================= */
+
+.login-box {
+    min-height: 100vh;
+    width: 100%;
+    max-width: 430px;
+    margin: auto;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.login-box h1,
+.login-box h2 {
+    text-align: center;
+    color: var(--primary);
+    margin-bottom: 25px;
+}
+
+.login-box input {
+    width: 100%;
+    padding: 13px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    outline: 0;
+}
+
+.login-box input:focus {
+    border-color: var(--blue);
+}
+
+.login-box button {
+    width: 100%;
+    border: 0;
+    padding: 13px;
+    border-radius: 8px;
+    font-weight: 600;
+    background: var(--primary);
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.login-box button.secondary {
+    background: #e9edf2;
+    color: var(--primary);
+}
+
+.login-box .link-button {
+    background: transparent;
+    color: #4b5563;
+    font-size: 14px;
+}
+
+#login-error {
+    color: #b42318;
+    font-size: 14px;
+    margin: 8px 0;
+}
+
+/* =========================
+   DASHBOARD
+   ========================= */
+
+.dashboard {
+    min-height: 100vh;
+    max-width: 1250px;
+    margin: auto;
+    padding: 30px;
+    text-align: left;
+}
+
+/* =========================
+   BARRE DU HAUT
+   ========================= */
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 22px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid var(--border);
+}
+
+.topbar h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.topbar p {
+    color: var(--muted);
+    margin-top: 5px;
+}
+
+.topbar-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.topbar button {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: #374151;
+    padding: 9px 14px;
+    border-radius: 7px;
+    font-weight: 600;
+}
+
+.topbar button:hover {
+    background: #f8fafc;
+    border-color: #c7ced8;
+}
+
+/* =========================
+   TITRES
+   ========================= */
+
+.page-title {
+    font-size: 24px;
+    color: var(--primary);
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.section-title h2 {
+    margin: 0;
+    color: var(--primary);
+    text-align: left;
+}
+
+.section-title button {
+    border: 0;
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 7px;
+    font-weight: 600;
+}
+
+.section-title button:hover {
+    background: var(--primary-light);
+}
+
+/* =========================
+   ÉLÈVES
+   ========================= */
+
+.students-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.student-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    transition: .2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .02);
+    text-align: left;
+}
+
+.student-card:hover {
+    border-color: #b7c0cc;
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+}
+
+.student-card h3 {
+    font-size: 19px;
+    color: var(--primary);
+    margin-bottom: 7px;
+    text-align: left;
+}
+
+.student-card p {
+    color: var(--muted);
+    font-size: 14px;
+    text-align: left;
+}
+
+.student-card button {
+    border: 1px solid var(--border) !important;
+    background: #fff !important;
+    color: #374151 !important;
+    border-radius: 7px !important;
+    padding: 8px 11px !important;
+    font-weight: 600 !important;
+}
+
+.student-card button:hover {
+    background: #f5f7fa !important;
+}
+
+.student-card button[onclick*="delete"] {
+    color: var(--danger) !important;
+    border-color: #f0caca !important;
+}
+
+.student-card button[onclick*="delete"]:hover {
+    background: var(--danger-light) !important;
+}
+
+/* =========================
+   MENU ÉLÈVE
+   ========================= */
+
+.student-menu {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 30px;
+}
+
+.student-menu button {
+    min-height: 120px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--primary);
+    font-size: 18px;
+    font-weight: 600;
+    transition: .2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .02);
+}
+
+.student-menu button:hover {
+    border-color: #9da8b8;
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+}
+
+/* =========================
+   MOYENNE
+   ========================= */
+
+.average-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin: 20px 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .02);
+    text-align: left;
+}
+
+.average-box strong {
+    font-size: 32px;
+    color: var(--primary);
+}
+
+/* =========================
+   SECTIONS
+   ========================= */
+
+section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .02);
+    text-align: left;
+}
+
+section h2 {
+    color: var(--primary);
+    margin-bottom: 18px;
+    text-align: left;
+}
+
+section h3 {
+    color: var(--primary);
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+section p {
+    color: #4b5563;
+    text-align: left;
+}
+
+section small {
+    text-align: left;
+}
+
+section button {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: #374151;
+    border-radius: 7px;
+    padding: 8px 12px;
+    font-weight: 600;
+}
+
+section button:hover {
+    background: #f7f8fa;
+}
+
+section button[onclick*="delete"] {
+    color: var(--danger);
+    border-color: #f0caca;
+}
+
+section button[onclick*="delete"]:hover {
+    background: var(--danger-light);
+}
+
+/* =========================
+   FORMULAIRES
+   ========================= */
+
+form {
+    width: 100%;
+    text-align: left;
+}
+
+form label {
+    display: block;
+    width: 100%;
+    margin-bottom: 6px;
+    color: var(--primary);
+    font-weight: 600;
+    text-align: left;
+}
+
+input,
+select,
+textarea {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    padding: 11px 13px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--blue);
+}
+
+form input,
+form select,
+form textarea {
+    width: 100%;
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+textarea {
+    min-height: 110px;
+    resize: vertical;
+    text-align: left !important;
+}
+
+/* =========================
+   RÉSUMÉ / CONCLUSION
+   ========================= */
+
+textarea[name="summary"],
+textarea[name="conclusion"],
+textarea[id*="summary"],
+textarea[id*="conclusion"] {
+    text-align: left !important;
+    direction: ltr;
+}
+
+/* Texte des séances enregistrées */
+.session-card p,
+.session-card .summary,
+.session-card .conclusion {
+    text-align: left !important;
+    white-space: pre-wrap;
+    direction: ltr;
+}
+
+/* =========================
+   BOUTONS FORMULAIRES
+   ========================= */
+
+form button {
+    border: 0;
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 7px;
+    font-weight: 600;
+}
+
+form button:hover {
+    background: var(--primary-light);
+}
+
+form button[type="button"] {
+    background: #e9edf2;
+    color: var(--primary);
+}
+
+/* =========================
+   TABLEAUX
+   ========================= */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+}
+
+th {
+    background: #f7f8fa;
+    color: var(--primary);
+    font-weight: 700;
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    color: #374151;
+    text-align: left;
+}
+
+tr:last-child td {
+    border-bottom: 0;
+}
+
+tr:hover td {
+    background: #fafbfc;
+}
+
+/* =========================
+   LIENS
+   ========================= */
+
+a {
+    color: var(--blue);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* =========================
+   SÉPARATEURS
+   ========================= */
+
+hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+}
+
+/* =========================
+   CARTES
+   ========================= */
+
+.session-card,
+.note-card,
+.progress-card,
+.difficulty-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+.session-card:hover,
+.note-card:hover,
+.progress-card:hover,
+.difficulty-card:hover {
+    box-shadow: var(--shadow);
+}
+
+.session-card h3,
+.note-card h3,
+.progress-card h3,
+.difficulty-card h3 {
+    color: var(--primary);
+    margin-bottom: 7px;
+    text-align: left;
+}
+
+.session-card small,
+.note-card small,
+.progress-card small,
+.difficulty-card small {
+    color: var(--muted);
+    text-align: left;
+}
+
+.session-card p,
+.note-card p,
+.progress-card p,
+.difficulty-card p {
+    text-align: left;
+}
+
+/* =========================
+   DIFFICULTÉS
+   ========================= */
+
+.difficulty-card strong {
+    display: block;
+    color: var(--primary);
+    font-size: 17px;
+    margin-bottom: 5px;
+    text-align: left;
+}
+
+.difficulty-card p {
+    margin-bottom: 12px;
+}
+
+/* =========================
+   BOUTON RETOUR
+   ========================= */
+
+.back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--primary);
+    padding: 9px 13px;
+    border-radius: 7px;
+    font-weight: 600;
+}
+
+.back-button:hover {
+    background: #f7f8fa;
+}
+
+/* =========================
+   BOUTONS D'AJOUT
+   ========================= */
+
+.add-button {
+    border: 0;
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 7px;
+    font-weight: 600;
+}
+
+.add-button:hover {
+    background: var(--primary-light);
+}
+
+.edit-button {
+    color: #374151 !important;
+}
+
+.delete-button {
+    color: var(--danger) !important;
+}
+
+/* =========================
+   ÉTAT VIDE
+   ========================= */
+
+.empty-state {
+    text-align: center;
+    padding: 35px 20px;
+    color: var(--muted);
+    background: #fff;
+    border: 1px dashed #cfd5dd;
+    border-radius: 10px;
+}
+
+/* =========================
+   MODALE
+   ========================= */
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1000;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 520px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .18);
+    text-align: left;
+}
+
+.modal-content h2 {
+    color: var(--primary);
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.modal-content input,
+.modal-content select,
+.modal-content textarea {
+    width: 100%;
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.modal-actions button {
+    padding: 10px 15px;
+    border-radius: 7px;
+    border: 0;
+    font-weight: 600;
+}
+
+.modal-actions button:first-child {
+    background: var(--primary);
+    color: #fff;
+}
+
+.modal-actions button:last-child {
+    background: #e9edf2;
+    color: var(--primary);
+}
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+
+@media (max-width: 700px) {
+    .dashboard {
+        padding: 20px;
+    }
+
+    .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .topbar-buttons {
+        width: 100%;
+    }
+
+    .topbar-buttons button {
+        flex: 1;
+    }
+
+    .student-menu {
+        grid-template-columns: 1fr;
+    }
+
+    .section-title {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .section-title button {
+        width: 100%;
+    }
+}
