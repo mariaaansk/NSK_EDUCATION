@@ -918,3 +918,21 @@ hr {
         padding: 17px;
     }
 }
+/* Correction définitive de l'alignement des textes des séances */
+.session-card p,
+.session-card div,
+.session-card .summary,
+.session-card .conclusion,
+.difficulty-card p {
+    text-align: left !important;
+    direction: ltr !important;
+    text-align-last: left !important;
+}
+
+/* Textes dans les formulaires */
+textarea[name="summary"],
+textarea[name="conclusion"] {
+    text-align: left !important;
+    direction: ltr !important;
+    text-align-last: left !important;
+}
