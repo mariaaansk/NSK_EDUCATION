@@ -33,6 +33,34 @@ function formatDate(date) {
     return new Date(date + "T00:00:00").toLocaleDateString("fr-FR");
 }
 
+
+function formatDuration(minutes) {
+    if (minutes == null || minutes === "") return "";
+
+    const hours = Math.floor(Number(minutes) / 60);
+    const remainingMinutes = Number(minutes) % 60;
+
+    if (hours === 0) return `${remainingMinutes} min`;
+    if (remainingMinutes === 0) return `${hours}h`;
+
+    return `${hours}h${remainingMinutes}`;
+}
+
+function durationOptions(selected = "") {
+    const durations = [];
+
+    for (let minutes = 30; minutes <= 600; minutes += 30) {
+        durations.push([minutes, formatDuration(minutes)]);
+    }
+
+    return `
+        <option value="">Choisir une durée</option>
+        ${durations.map(([minutes, label]) => `
+            <option value="${minutes}" ${String(selected) === String(minutes) ? "selected" : ""}>${label}</option>
+        `).join("")}
+    `;
+}
+
 function normalizeGrade(grade, max) {
     return Number(
         ((Number(grade) / Number(max)) * 20).toFixed(2)
@@ -834,6 +862,12 @@ async function showSessions() {
                                                                 ${formatDate(session.date)}
                                                             </strong>
 
+                                                            ${session.duration_minutes != null ? `
+                                                                <span style="margin-left:10px; color:#64748b;">
+                                                                    ${formatDuration(session.duration_minutes)}
+                                                                </span>
+                                                            ` : ""}
+
                                                         </div>
                                                     `
                                                 ).join("")
@@ -927,6 +961,23 @@ function addSessionForSubject(encodedSubject) {
                         text-align:left;
                     "
                 >
+
+
+                <label>
+                    Durée totale
+                </label>
+
+                <select
+                    id="session-duration"
+                    required
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+                    ${durationOptions()}
+                </select>
 
 
                 <label>
@@ -1054,6 +1105,12 @@ async function showSubjectSessions(encodedSubject) {
                                     ${formatDate(session.date)}
                                 </strong>
 
+                                ${session.duration_minutes != null ? `
+                                    <span style="margin-left:10px; color:#64748b;">
+                                        ${formatDuration(session.duration_minutes)}
+                                    </span>
+                                ` : ""}
+
                             </div>
                         `).join("")
 
@@ -1099,7 +1156,7 @@ async function showSession(id) {
                 <div>
 
                     <h1>
-                        Séance du ${formatDate(session.date)}
+                        Séance du ${formatDate(session.date)}${session.duration_minutes != null ? ` — ${formatDuration(session.duration_minutes)}` : ""}
                     </h1>
 
                     <p>
@@ -1343,6 +1400,23 @@ function addSession() {
 
 
                 <label>
+                    Durée totale
+                </label>
+
+                <select
+                    id="session-duration"
+                    required
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+                    ${durationOptions()}
+                </select>
+
+
+                <label>
                     Résumé
                 </label>
 
@@ -1419,12 +1493,22 @@ async function saveSession() {
             .value
             .trim();
 
+    const durationMinutes =
+        document
+            .getElementById("session-duration")
+            .value;
+
     if (!date || !subject) {
 
         alert(
             "La date et la matière sont obligatoires."
         );
 
+        return;
+    }
+
+    if (!durationMinutes) {
+        alert("Choisis la durée totale de la séance.");
         return;
     }
 
@@ -1436,7 +1520,8 @@ async function saveSession() {
                 date,
                 subject,
                 summary,
-                conclusion
+                conclusion,
+                duration_minutes: Number(durationMinutes)
             });
 
     if (error) {
@@ -1512,6 +1597,22 @@ async function editSession(id) {
                         text-align:left;
                     "
                 >
+
+
+                <label>
+                    Durée totale
+                </label>
+
+                <select
+                    id="edit-session-duration"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+                    ${durationOptions(session.duration_minutes)}
+                </select>
 
 
                 <label>
@@ -1599,6 +1700,11 @@ async function saveEditedSession(id) {
             .value
             .trim();
 
+    const durationMinutes =
+        document
+            .getElementById("edit-session-duration")
+            .value;
+
     if (!date || !subject) {
 
         alert(
@@ -1615,7 +1721,8 @@ async function saveEditedSession(id) {
                 date,
                 subject,
                 summary,
-                conclusion
+                conclusion,
+                duration_minutes: durationMinutes ? Number(durationMinutes) : null
             })
             .eq("id", id);
 
