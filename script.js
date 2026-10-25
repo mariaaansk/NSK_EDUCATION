@@ -767,9 +767,15 @@ async function showSessions() {
                 </h2>
 
 
-                <button onclick="addSession()">
-                    + Ajouter une séance
-                </button>
+                
+<button onclick="addSession()">
+    + Ajouter une séance
+</button>
+
+<button onclick="showAllSubjectDocuments()">
+    📚 Documents PDF
+</button>
+
 
             </div>
 
