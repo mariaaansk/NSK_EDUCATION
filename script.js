@@ -1,1924 +1,559 @@
 
-const SUPABASE_URL = "https://htsxwtgcgczmdgexfxny.supabase.co";
-const SUPABASE_KEY = "sb_publishable_hxcdPuJMlrh9yd4W5n-MhQ_mYeak9am";
+/* =================================
+   NSK ÉDUCATION
+   SCRIPT PRINCIPAL
+   ================================= */
 
-const supabaseClient = supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
+const SUPABASE_URL =
+  "https://hztywwjrjkihivupcmad.supabase.co";
+
+const SUPABASE_KEY =
+  "sb_publishable_am_wEiQkh4F-9VhIUC0LFg_zux-_jgu";
+
+const app = document.getElementById("app");
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
 );
 
-let currentStudent = null;
+let currentUser = null;
+let students = [];
 
+/* AFFICHER UN MESSAGE */
 
-/* =========================
-   OUTILS
-========================= */
+function showMessage(message, type = "info") {
+  const box = document.getElementById("message");
 
-function app() {
-    return document.getElementById("app");
+  if (!box) {
+    alert(message);
+    return;
+  }
+
+  box.textContent = message;
+  box.className = "alert " + type;
+  box.classList.remove("hidden");
 }
 
-function escapeHTML(value = "") {
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+/* ÉCHAPPER LE HTML */
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[char]);
 }
 
-function formatDate(date) {
-    if (!date) return "";
-
-    return new Date(date + "T00:00:00").toLocaleDateString("fr-FR");
-}
-
-function formatDuration(minutes) {
-    if (minutes == null || minutes === "") return "";
-
-    const totalMinutes = Number(minutes);
-
-    if (!Number.isFinite(totalMinutes)) return "";
-
-    const hours = Math.floor(totalMinutes / 60);
-    const remainingMinutes = totalMinutes % 60;
-
-    if (hours === 0) return `${remainingMinutes} min`;
-    if (remainingMinutes === 0) return `${hours}h`;
-
-    return `hoursh{remainingMinutes}`;
-}
-
-function durationOptions(selected = "") {
-    const durations = [];
-
-    for (let minutes = 30; minutes <= 600; minutes += 30) {
-        durations.push([minutes, formatDuration(minutes)]);
-    }
-
-    return `
-        <option value="">Choisir une durée</option>
-        ${durations.map(([minutes, label]) => `
-            <option value="${minutes}" String(selected)===String(minutes)?"selected":"">{label}</option>
-        `).join("")}
-    `;
-}
-
-function normalizeGrade(grade, max) {
-    return Number(
-        ((Number(grade) / Number(max)) * 20).toFixed(2)
-    );
-}
-
-
-/* =========================
-   ACCUEIL
-========================= */
-
-function showHome() {
-    app().innerHTML = `
-        <div class="home">
-            <h1>NSK Éducation</h1>
-
-            <p>Suivi des élèves</p>
-
-            <div class="home-buttons">
-                <button onclick="showLogin()">
-                    Connexion enseignant
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-
-/* =========================
-   CONNEXION
-========================= */
+/* PAGE DE CONNEXION */
 
 function showLogin() {
-    app().innerHTML = `
-        <div class="login-box">
+  app.innerHTML = `
+    <main class="login-page">
+      <section class="login-box">
+        <h1>NSK Éducation</h1>
+        <p>Bienvenue dans ton espace enseignant.</p>
 
-            <h1>NSK Éducation</h1>
-
-            <h2>Connexion</h2>
-
+        <form id="login-form">
+          <div class="form-group">
+            <label for="email">Adresse e-mail</label>
             <input
-                id="login-email"
-                type="email"
-                placeholder="Adresse e-mail"
+              id="email"
+              type="email"
+              autocomplete="email"
+              required
             >
+          </div>
 
+          <div class="form-group">
+            <label for="password">Mot de passe</label>
             <input
-                id="login-password"
-                type="password"
-                placeholder="Mot de passe"
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              required
             >
+          </div>
 
-            <p id="login-error"></p>
+          <p id="login-error" class="error-text"></p>
 
-            <button onclick="login()">
-                Se connecter
-            </button>
+          <button id="login-button" class="w-full" type="submit">
+            Se connecter
+          </button>
+        </form>
 
-            <button
-                class="secondary"
-                onclick="showHome()"
-            >
-                Retour
-            </button>
+        <button id="signup-button" class="secondary w-full mt-2"
+                type="button">
+          Créer un compte
+        </button>
 
-            <button
-                class="link-button"
-                onclick="forgotPassword()"
-            >
-                Mot de passe oublié ?
-            </button>
+        <button id="forgot-button" class="link-button w-full"
+                type="button">
+          Mot de passe oublié ?
+        </button>
+      </section>
+    </main>
+  `;
 
-        </div>
-    `;
+  document.getElementById("login-form")
+    .addEventListener("submit", login);
+
+  document.getElementById("signup-button")
+    .addEventListener("click", signup);
+
+  document.getElementById("forgot-button")
+    .addEventListener("click", resetPassword);
 }
 
+/* CONNEXION */
 
-async function login() {
-    const email =
-        document.getElementById("login-email").value.trim();
+async function login(event) {
+  event.preventDefault();
 
-    const password =
-        document.getElementById("login-password").value;
+  const button = document.getElementById("login-button");
+  const errorBox = document.getElementById("login-error");
 
-    const error =
-        document.getElementById("login-error");
+  button.disabled = true;
+  button.textContent = "Connexion...";
 
-    if (!email || !password) {
-        error.textContent = "Veuillez remplir tous les champs.";
-        return;
+  try {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    const { data, error } = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) throw error;
+
+    currentUser = data.user;
+    await showDashboard();
+  } catch (error) {
+    errorBox.textContent =
+      error.message || "Connexion impossible. Vérifie tes identifiants.";
+  } finally {
+    if (document.getElementById("login-button")) {
+      button.disabled = false;
+      button.textContent = "Se connecter";
     }
-
-    error.textContent = "Connexion en cours...";
-
-    try {
-        const { data, error: loginError } =
-            await supabaseClient.auth.signInWithPassword({
-                email,
-                password
-            });
-
-        if (loginError) {
-            error.textContent = "E-mail ou mot de passe incorrect.";
-            return;
-        }
-
-        const { data: profile, error: profileError } =
-            await supabaseClient
-                .from("profiles")
-                .select("role")
-                .eq("id", data.user.id)
-                .single();
-
-        if (profileError || !profile || profile.role !== "teacher") {
-            await supabaseClient.auth.signOut();
-
-            error.textContent = "Accès réservé à l'enseignant.";
-            return;
-        }
-
-        await showDashboard();
-
-    } catch (err) {
-        console.error("Erreur de connexion :", err);
-        error.textContent =
-            "Une erreur est survenue. Vérifie ta connexion et réessaie.";
-    }
+  }
 }
 
+/* CRÉATION DE COMPTE */
 
-async function forgotPassword() {
-    const email = prompt("Entrez votre adresse e-mail :");
+async function signup() {
+  const email = prompt("Quelle est ton adresse e-mail ?");
+  if (!email) return;
 
-    if (!email) return;
+  const password = prompt(
+    "Choisis un mot de passe d'au moins 8 caractères :"
+  );
+  if (!password) return;
 
-    try {
-        const { error } =
-            await supabaseClient.auth.resetPasswordForEmail(
-                email,
-                {
-                    redirectTo: window.location.origin
-                }
-            );
+  if (password.length < 8) {
+    alert("Le mot de passe doit contenir au moins 8 caractères.");
+    return;
+  }
 
-        if (error) {
-            alert(error.message);
-            return;
-        }
+  try {
+    const { data, error } = await db.auth.signUp({
+      email: email.trim(),
+      password
+    });
 
-        alert("Un e-mail de réinitialisation a été envoyé.");
+    if (error) throw error;
 
-    } catch (err) {
-        console.error("Erreur de réinitialisation :", err);
-        alert("Impossible d'envoyer l'e-mail. Réessaie plus tard.");
+    if (data.session && data.user) {
+      currentUser = data.user;
+      await showDashboard();
+    } else {
+      alert(
+        "Compte créé. Si la confirmation par e-mail est activée, " +
+        "ouvre le message reçu avant de te connecter."
+      );
     }
+  } catch (error) {
+    alert("Création impossible : " + error.message);
+  }
 }
 
+/* MOT DE PASSE OUBLIÉ */
 
-/* =========================
-   TABLEAU DE BORD
-========================= */
+async function resetPassword() {
+  const email = prompt("Saisis l'adresse e-mail de ton compte.");
+  if (!email) return;
+
+  try {
+    const { error } = await db.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: window.location.origin
+      }
+    );
+
+    if (error) throw error;
+
+    alert("Si cette adresse correspond à un compte, un e-mail sera envoyé.");
+  } catch (error) {
+    alert("Erreur : " + error.message);
+  }
+}
+
+/* TABLEAU DE BORD */
 
 async function showDashboard() {
-    const root = app();
-
-    root.innerHTML = `
-        <div class="dashboard">
-            <h2>Chargement des élèves...</h2>
-        </div>
-    `;
-
-    try {
-        const { data: students, error } =
-            await supabaseClient
-                .from("Students")
-                .select("*")
-                .order("name");
-
-        if (error) {
-            root.innerHTML = `
-                <div class="dashboard">
-                    <h2>Erreur</h2>
-                    <p>${escapeHTML(error.message)}</p>
-                    <button onclick="showHome()">Retour à l'accueil</button>
-                </div>
-            `;
-            return;
-        }
-
-        root.innerHTML = `
-            <div class="dashboard">
-
-                <div class="topbar">
-
-                    <div>
-                        <h1>NSK Éducation</h1>
-                        <p>Tableau de bord enseignant</p>
-                    </div>
-
-                    <div class="topbar-buttons">
-                        <button onclick="showAddStudent()">
-                            + Ajouter un élève
-                        </button>
-
-                        <button onclick="logout()">
-                            Déconnexion
-                        </button>
-                    </div>
-
-                </div>
-
-                <div class="section-title">
-                    <h2 class="page-title">Mes élèves</h2>
-                </div>
-
-                <div class="students-grid">
-                    ${
-                        students && students.length
-                            ? students.map(student => `
-                                <div class="student-card">
-
-                                    <div onclick="openStudent('${student.id}')">
-                                        <h3>${escapeHTML(student.name)}</h3>
-                                        <p>${escapeHTML(student.class || "")}</p>
-                                    </div>
-
-                                    <div style="margin-top:15px;display:flex;gap:8px;">
-                                        <button
-                                            onclick="editStudent('${student.id}')"
-                                            style="padding:7px 10px;"
-                                        >
-                                            Modifier
-                                        </button>
-
-                                        <button
-                                            onclick="deleteStudent('${student.id}')"
-                                            style="padding:7px 10px;"
-                                        >
-                                            Supprimer
-                                        </button>
-                                    </div>
-
-                                </div>
-                            `).join("")
-                            : `<p>Aucun élève enregistré.</p>`
-                    }
-                </div>
-
-            </div>
-        `;
-
-    } catch (err) {
-        console.error("Erreur du tableau de bord :", err);
-
-        root.innerHTML = `
-            <div class="dashboard">
-                <h2>Impossible de charger les élèves</h2>
-                <p>Vérifie ta connexion puis réessaie.</p>
-                <button onclick="showDashboard()">Réessayer</button>
-                <button onclick="logout()">Déconnexion</button>
-            </div>
-        `;
-    }
-}
-
-
-/* =========================
-   ÉLÈVES
-========================= */
-
-function showAddStudent() {
-    app().innerHTML = `
-        <div class="dashboard">
-
-            <div class="topbar">
-                <div>
-                    <h1>Ajouter un élève</h1>
-                </div>
-            </div>
-
-            <section>
-                <input
-                    id="student-name"
-                    placeholder="Nom et prénom"
-                    style="width:100%;padding:12px;margin-bottom:12px;"
-                >
-
-                <input
-                    id="student-class"
-                    placeholder="Classe"
-                    style="width:100%;padding:12px;margin-bottom:12px;"
-                >
-
-                <button onclick="addStudent()">
-                    Ajouter
-                </button>
-
-                <button onclick="showDashboard()">
-                    Annuler
-                </button>
-            </section>
-
-        </div>
-    `;
-}
-
-
-async function addStudent() {
-    const name =
-        document.getElementById("student-name").value.trim();
-
-    const studentClass =
-        document.getElementById("student-class").value.trim();
-
-    if (!name) {
-        alert("Veuillez renseigner le nom.");
-        return;
-    }
-
-    try {
-        const { error } =
-            await supabaseClient
-                .from("Students")
-                .insert({
-                    name,
-                    class: studentClass
-                });
-
-        if (error) {
-            alert("Impossible d'ajouter l'élève : " + error.message);
-            return;
-        }
-
-        await showDashboard();
-
-    } catch (err) {
-        console.error("Erreur lors de l'ajout :", err);
-        alert("Une erreur est survenue lors de l'ajout de l'élève.");
-    }
-}
-
-
-async function editStudent(id) {
-    try {
-        const { data: student, error } =
-            await supabaseClient
-                .from("Students")
-                .select("*")
-                .eq("id", id)
-                .single();
-
-        if (error || !student) {
-            alert("Impossible de charger cet élève.");
-            return;
-        }
-
-        app().innerHTML = `
-            <div class="dashboard">
-
-                <div class="topbar">
-                    <h1>Modifier l'élève</h1>
-                </div>
-
-                <section>
-                    <input
-                        id="edit-student-name"
-                        value="${escapeHTML(student.name || "")}"
-                        placeholder="Nom et prénom"
-                        style="width:100%;padding:12px;margin-bottom:12px;"
-                    >
-
-                    <input
-                        id="edit-student-class"
-                        value="${escapeHTML(student.class || "")}"
-                        placeholder="Classe"
-                        style="width:100%;padding:12px;margin-bottom:12px;"
-                    >
-
-                    <button onclick="saveStudent('${id}')">
-                        Enregistrer
-                    </button>
-
-                    <button onclick="showDashboard()">
-                        Annuler
-                    </button>
-                </section>
-
-            </div>
-        `;
-
-    } catch (err) {
-        console.error("Erreur lors du chargement de l'élève :", err);
-        alert("Une erreur est survenue.");
-    }
-}
-
-
-async function saveStudent(id) {
-    const name =
-        document.getElementById("edit-student-name").value.trim();
-
-    const studentClass =
-        document.getElementById("edit-student-class").value.trim();
-
-    if (!name) {
-        alert("Le nom est obligatoire.");
-        return;
-    }
-
-    try {
-        const { error } =
-            await supabaseClient
-                .from("Students")
-                .update({
-                    name,
-                    class: studentClass
-                })
-                .eq("id", id);
-
-        if (error) {
-            alert("Impossible de modifier l'élève : " + error.message);
-            return;
-        }
-
-        await showDashboard();
-
-    } catch (err) {
-        console.error("Erreur lors de la modification :", err);
-        alert("Une erreur est survenue lors de la modification.");
-    }
-}
-
-
-async function deleteStudent(id) {
-    if (!confirm("Supprimer cet élève et toutes ses données ?")) {
-        return;
-    }
-
-    const tables = [
-        "Sessions",
-        "Notes",
-        "Progress",
-        "Difficulties"
-    ];
-
-    try {
-        for (const table of tables) {
-            const { error } =
-                await supabaseClient
-                    .from(table)
-                    .delete()
-                    .eq("student_id", id);
-
-            if (error) {
-                alert(
-                    "Impossible de supprimer les données de " +
-                    table +
-                    " : " +
-                    error.message
-                );
-                return;
-            }
-        }
-
-        const { error } =
-            await supabaseClient
-                .from("Students")
-                .delete()
-                .eq("id", id);
-
-        if (error) {
-            alert("Impossible de supprimer l'élève : " + error.message);
-            return;
-        }
-
-        await showDashboard();
-
-    } catch (err) {
-        console.error("Erreur lors de la suppression :", err);
-        alert("Une erreur est survenue lors de la suppression.");
-    }
-}
-
-
-/* =========================
-   PAGE ÉLÈVE
-========================= */
-
-async function openStudent(id) {
-    try {
-        const { data: student, error } =
-            await supabaseClient
-                .from("Students")
-                .select("*")
-                .eq("id", id)
-                .single();
-
-        if (error || !student) {
-            alert("Impossible d'ouvrir la fiche de cet élève.");
-            return;
-        }
-
-        currentStudent = student;
-
-        renderStudentPage();
-
-    } catch (err) {
-        console.error("Erreur lors de l'ouverture de l'élève :", err);
-        alert("Une erreur est survenue lors de l'ouverture de la fiche.");
-    }
-}
-
-
-function renderStudentPage() {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
-
-    app().innerHTML = `
-        <div class="dashboard">
-
-            <div class="topbar">
-
-                <div>
-                    <h1>${escapeHTML(currentStudent.name)}</h1>
-                    <p>${escapeHTML(currentStudent.class || "")}</p>
-                </div>
-
-                <button onclick="showDashboard()">
-                    Retour aux élèves
-                </button>
-
-            </div>
-
-            <div class="student-menu">
-
-                <button onclick="showSessions()">
-                    Séances
-                </button>
-
-                <button onclick="showNotes()">
-                    Notes
-                </button>
-
-                <button onclick="showProgress()">
-                    Progression
-                </button>
-
-                <button onclick="showDifficulties()">
-                    Difficultés
-                </button>
-
-            </div>
-
-        </div>
-    `;
-}
-
-
-/* =========================================================
-   PARTIE 3/5 — GESTION DES SÉANCES
-   ========================================================= */
-
-function showSessions() {
-  if (!currentStudent) {
-    showDashboard();
+  if (!currentUser) {
+    showLogin();
     return;
   }
 
-  app().innerHTML = `
+  app.innerHTML = `
     <div class="dashboard">
-      <div class="topbar">
-        <h1>Séances de ${escapeHTML(currentStudent.name)}</h1>
-        <div>
-          <button onclick="renderStudentPage()">Retour à l'élève</button>
-          <button onclick="showAllSubjectDocuments()">Documents PDF</button>
+      <header class="topbar">
+        <div class="topbar-brand">
+          <div class="topbar-logo">NSK</div>
+          <span>NSK Éducation</span>
         </div>
-      </div>
 
-      <section class="card">
-        <h2>Ajouter une séance</h2>
+        <button id="logout-button" class="secondary" type="button">
+          Déconnexion
+        </button>
+      </header>
 
-        <form onsubmit="addSessionForSubject(event)">
-          <label for="session-subject">Matière</label>
-          <input
-            id="session-subject"
-            name="subject"
-            type="text"
-            required
-            placeholder="Ex. : Mathématiques"
-          >
+      <main class="dashboard-content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Mon espace enseignant</h1>
+            <p>Connecté avec ${escapeHTML(currentUser.email || "")}</p>
+          </div>
 
-          <label for="session-date">Date</label>
-          <input
-            id="session-date"
-            name="date"
-            type="date"
-            required
-            value="${new Date().toISOString().slice(0, 10)}"
-          >
+          <button id="add-student-button" type="button">
+            + Ajouter un élève
+          </button>
+        </div>
 
-          <label for="session-duration">Durée</label>
-          <select id="session-duration" name="duration_minutes">
-            ${durationOptions(60)}
-          </select>
+        <div id="message" class="hidden" role="status"></div>
 
-          <button type="submit">Ajouter la séance</button>
-        </form>
-      </section>
+        <section class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Nombre d'élèves</div>
+            <div id="student-count" class="stat-value">0</div>
+          </div>
+        </section>
 
-      <section class="card">
-        <h2>Séances enregistrées</h2>
-        <div id="sessions-list">Chargement des séances...</div>
-      </section>
+        <section class="card">
+          <h2>Mes élèves</h2>
+
+          <div class="form-group">
+            <label for="student-search">Rechercher</label>
+            <input
+              id="student-search"
+              type="search"
+              placeholder="Nom ou classe..."
+            >
+          </div>
+
+          <div id="students-container">
+            <p>Chargement des élèves...</p>
+          </div>
+        </section>
+
+        <section id="student-form-section" class="card mt-3 hidden">
+          <h2 id="student-form-heading">Ajouter un élève</h2>
+
+          <form id="student-form">
+            <input id="student-id" type="hidden">
+
+            <div class="form-group">
+              <label for="student-name">Nom de l'élève</label>
+              <input
+                id="student-name"
+                type="text"
+                maxlength="150"
+                required
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="student-class">Classe</label>
+              <input
+                id="student-class"
+                type="text"
+                maxlength="100"
+                placeholder="Ex. : 3e, Terminale..."
+              >
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="save-student-button">
+                Enregistrer
+              </button>
+
+              <button type="button" id="cancel-student-button"
+                      class="secondary">
+                Annuler
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
     </div>
   `;
 
-  loadSessions();
+  document.getElementById("logout-button")
+    .addEventListener("click", logout);
+
+  document.getElementById("add-student-button")
+    .addEventListener("click", () => openStudentForm());
+
+  document.getElementById("student-form")
+    .addEventListener("submit", saveStudent);
+
+  document.getElementById("cancel-student-button")
+    .addEventListener("click", closeStudentForm);
+
+  document.getElementById("student-search")
+    .addEventListener("input", renderStudents);
+
+  await loadStudents();
 }
 
+/* CHARGER LES ÉLÈVES */
 
-async function loadSessions() {
-  const list = document.getElementById("sessions-list");
+async function loadStudents() {
+  const container = document.getElementById("students-container");
+  if (!container || !currentUser) return;
 
-  if (!list || !currentStudent) return;
+  container.innerHTML = "<p>Chargement...</p>";
 
   try {
-    const { data, error } = await supabaseClient
-      .from("Sessions")
-      .select("*")
-      .eq("student_id", currentStudent.id)
-      .order("date", { ascending: false });
+    const { data, error } = await db
+      .from("Students")
+      .select("id, name, class")
+      .order("name", { ascending: true });
 
     if (error) throw error;
 
-    if (!data || data.length === 0) {
-      list.innerHTML = "<p>Aucune séance enregistrée pour le moment.</p>";
-      return;
-    }
+    students = data || [];
 
-    list.innerHTML = data.map(session => `
-      <article class="session-item card">
-        <h3>${escapeHTML(formatDate(session.date))}</h3>
+    const count = document.getElementById("student-count");
+    if (count) count.textContent = students.length;
 
-        <p>
-          <strong>Matière :</strong>
-          ${escapeHTML(session.subject || "Non renseignée")}
-        </p>
-
-        <p>
-          <strong>Durée :</strong>
-          ${session.duration_minutes != null
-            ? escapeHTML(formatDuration(session.duration_minutes))
-            : "Non renseignée"}
-        </p>
-
-        <button onclick="showSession('${session.id}')">
-          Ouvrir
-        </button>
-
-        <button onclick="editSession('${session.id}')">
-          Modifier
-        </button>
-
-        <button onclick="deleteSession('${session.id}')">
-          Supprimer
-        </button>
-      </article>
-    `).join("");
+    renderStudents();
   } catch (error) {
-    console.error("Erreur lors du chargement des séances :", error);
-    list.innerHTML = `
-      <p>Impossible de charger les séances.</p>
-      <button onclick="loadSessions()">Réessayer</button>
-    `;
-  }
-}
-
-
-async function addSessionForSubject(event) {
-  event.preventDefault();
-
-  if (!currentStudent) {
-    alert("Aucun élève sélectionné.");
-    return;
-  }
-
-  const form = event.target;
-  const formData = new FormData(form);
-
-  const subject = String(formData.get("subject") || "").trim();
-  const date = String(formData.get("date") || "");
-  const duration = Number(formData.get("duration_minutes"));
-
-  if (!subject || !date) {
-    alert("Merci de renseigner la matière et la date.");
-    return;
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from("Sessions")
-      .insert([{
-        student_id: currentStudent.id,
-        subject,
-        date,
-        duration_minutes: Number.isFinite(duration) ? duration : null
-      }]);
-
-    if (error) throw error;
-
-    alert("Séance ajoutée avec succès.");
-    showSessions();
-  } catch (error) {
-    console.error("Erreur lors de l'ajout de la séance :", error);
-    alert("Impossible d'ajouter la séance. Vérifie les données et les autorisations.");
-  }
-}
-
-
-async function showSubjectSessions(subject) {
-  if (!currentStudent) {
-    showDashboard();
-    return;
-  }
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("Sessions")
-      .select("*")
-      .eq("student_id", currentStudent.id)
-      .eq("subject", subject)
-      .order("date", { ascending: false });
-
-    if (error) throw error;
-
-    app().innerHTML = `
-      <div class="dashboard">
-        <div class="topbar">
-          <h1>${escapeHTML(subject)}</h1>
-          <button onclick="showSessions()">Retour aux séances</button>
-        </div>
-
-        <section class="card">
-          ${
-            data && data.length
-              ? data.map(session => `
-                <article class="session-item card">
-                  <h3>${escapeHTML(formatDate(session.date))}</h3>
-                  <p>
-                    Durée :
-                    ${session.duration_minutes != null
-                      ? escapeHTML(formatDuration(session.duration_minutes))
-                      : "Non renseignée"}
-                  </p>
-                  <button onclick="showSession('${session.id}')">
-                    Ouvrir
-                  </button>
-                </article>
-              `).join("")
-              : "<p>Aucune séance pour cette matière.</p>"
-          }
-        </section>
+    container.innerHTML = `
+      <div class="alert error">
+        ${escapeHTML(error.message)}
+        <p>Vérifie la table Students et ses règles de sécurité dans Supabase.</p>
       </div>
     `;
-  } catch (error) {
-    console.error("Erreur lors du chargement des séances par matière :", error);
-    alert("Impossible de charger les séances de cette matière.");
   }
 }
 
+/* AFFICHER LES ÉLÈVES */
 
-async function showSession(sessionId) {
-  try {
-    const { data: session, error } = await supabaseClient
-      .from("Sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .single();
+function renderStudents() {
+  const container = document.getElementById("students-container");
+  if (!container) return;
 
-    if (error) throw error;
+  const search = (
+    document.getElementById("student-search")?.value || ""
+  ).toLowerCase().trim();
 
-    if (!session) {
-      alert("Séance introuvable.");
-      return;
-    }
-
-    app().innerHTML = `
-      <div class="dashboard">
-        <div class="topbar">
-          <h1>Séance du escapeHTML(formatDate(session.date)){
-            session.duration_minutes != null
-              ? ` — ${escapeHTML(formatDuration(session.duration_minutes))}`
-              : ""
-          }</h1>
-
-          <button onclick="showSessions()">Retour aux séances</button>
-        </div>
-
-        <section class="card">
-          <p>
-            <strong>Matière :</strong>
-            ${escapeHTML(session.subject || "Non renseignée")}
-          </p>
-
-          <p>
-            <strong>Date :</strong>
-            ${escapeHTML(formatDate(session.date))}
-          </p>
-
-          <p>
-            <strong>Durée :</strong>
-            ${session.duration_minutes != null
-              ? escapeHTML(formatDuration(session.duration_minutes))
-              : "Non renseignée"}
-          </p>
-
-          <button onclick="showSessionSummary('${session.id}')">
-            Voir le résumé
-          </button>
-
-          <button onclick="showSessionConclusion('${session.id}')">
-            Voir la conclusion
-          </button>
-
-          <button onclick="editSession('${session.id}')">
-            Modifier la séance
-          </button>
-        </section>
-      </div>
-    `;
-  } catch (error) {
-    console.error("Erreur lors de l'ouverture de la séance :", error);
-    alert("Impossible d'ouvrir cette séance.");
-  }
-}
-
-
-async function showSessionSummary(sessionId) {
-  try {
-    const { data: session, error } = await supabaseClient
-      .from("Sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .single();
-
-    if (error) throw error;
-
-    app().innerHTML = `
-      <div class="dashboard">
-        <div class="topbar">
-          <h1>Résumé de la séance</h1>
-          <button onclick="showSession('${session.id}')">Retour</button>
-        </div>
-
-        <section class="card">
-          <h2>${escapeHTML(session.subject || "Séance")}</h2>
-
-          <p>
-            ${escapeHTML(
-              session.summary ||
-              session.resume ||
-              "Aucun résumé n'a encore été renseigné."
-            )}
-          </p>
-        </section>
-      </div>
-    `;
-  } catch (error) {
-    console.error("Erreur lors du chargement du résumé :", error);
-    alert("Impossible de charger le résumé.");
-  }
-}
-
-
-async function showSessionConclusion(sessionId) {
-  try {
-    const { data: session, error } = await supabaseClient
-      .from("Sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .single();
-
-    if (error) throw error;
-
-    app().innerHTML = `
-      <div class="dashboard">
-        <div class="topbar">
-          <h1>Conclusion de la séance</h1>
-          <button onclick="showSession('${session.id}')">Retour</button>
-        </div>
-
-        <section class="card">
-          <h2>${escapeHTML(session.subject || "Séance")}</h2>
-
-          <p>
-            ${escapeHTML(
-              session.conclusion ||
-              "Aucune conclusion n'a encore été renseignée."
-            )}
-          </p>
-        </section>
-      </div>
-    `;
-  } catch (error) {
-    console.error("Erreur lors du chargement de la conclusion :", error);
-    alert("Impossible de charger la conclusion.");
-  }
-}
-
-
-async function addSession() {
-  if (!currentStudent) {
-    alert("Aucun élève sélectionné.");
-    return;
-  }
-
-  const subject = prompt("Matière de la séance :");
-  if (subject === null || !subject.trim()) return;
-
-  const date = prompt(
-    "Date de la séance (AAAA-MM-JJ) :",
-    new Date().toISOString().slice(0, 10)
+  const filtered = students.filter(student =>
+    String(student.name || "").toLowerCase().includes(search) ||
+    String(student.class || "").toLowerCase().includes(search)
   );
 
-  if (date === null || !date.trim()) return;
-
-  const durationInput = prompt("Durée en minutes :", "60");
-  if (durationInput === null) return;
-
-  const duration = Number(durationInput);
-
-  if (!Number.isFinite(duration) || duration < 0) {
-    alert("La durée doit être un nombre positif ou nul.");
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>Aucun élève trouvé</h3>
+        <p>Tu peux ajouter un élève avec le bouton ci-dessus.</p>
+      </div>
+    `;
     return;
   }
 
-  try {
-    const { error } = await supabaseClient
-      .from("Sessions")
-      .insert([{
-        student_id: currentStudent.id,
-        subject: subject.trim(),
-        date: date.trim(),
-        duration_minutes: duration
-      }]);
+  container.innerHTML = `
+    <div class="students-grid">
+      ${filtered.map(student => `
+        <article class="student-card">
+          <h3>${escapeHTML(student.name)}</h3>
+          <p>Classe : ${escapeHTML(student.class || "Non renseignée")}</p>
 
-    if (error) throw error;
+          <div class="student-menu">
+            <button
+              class="secondary"
+              data-edit-id="${escapeHTML(student.id)}"
+              type="button"
+            >Modifier</button>
 
-    alert("Séance ajoutée.");
-    showSessions();
-  } catch (error) {
-    console.error("Erreur lors de l'ajout de la séance :", error);
-    alert("Impossible d'ajouter la séance.");
-  }
-}
+            <button
+              class="danger"
+              data-delete-id="${escapeHTML(student.id)}"
+              type="button"
+            >Supprimer</button>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
 
+  container.querySelectorAll("[data-edit-id]").forEach(button => {
+    button.addEventListener("click", () => {
+      const student = students.find(
+        item => String(item.id) === button.dataset.editId
+      );
 
-async function saveSession(sessionId, updates) {
-  try {
-    const { error } = await supabaseClient
-      .from("Sessions")
-      .update(updates)
-      .eq("id", sessionId);
-
-    if (error) throw error;
-
-    alert("Séance enregistrée.");
-    showSession(sessionId);
-  } catch (error) {
-    console.error("Erreur lors de l'enregistrement de la séance :", error);
-    alert("Impossible d'enregistrer la séance.");
-  }
-}
-
-
-async function editSession(sessionId) {
-  try {
-    const { data: session, error } = await supabaseClient
-      .from("Sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .single();
-
-    if (error) throw error;
-
-    const subject = prompt("Matière :", session.subject || "");
-    if (subject === null) return;
-
-    const date = prompt("Date (AAAA-MM-JJ) :", session.date || "");
-    if (date === null) return;
-
-    const durationInput = prompt(
-      "Durée en minutes :",
-      session.duration_minutes == null
-        ? "60"
-        : String(session.duration_minutes)
-    );
-
-    if (durationInput === null) return;
-
-    const duration = Number(durationInput);
-
-    if (!subject.trim() || !date.trim()) {
-      alert("La matière et la date sont obligatoires.");
-      return;
-    }
-
-    if (!Number.isFinite(duration) || duration < 0) {
-      alert("La durée doit être un nombre positif ou nul.");
-      return;
-    }
-
-    await saveSession(sessionId, {
-      subject: subject.trim(),
-      date: date.trim(),
-      duration_minutes: duration
+      if (student) openStudentForm(student);
     });
-  } catch (error) {
-    console.error("Erreur lors de la modification de la séance :", error);
-    alert("Impossible de modifier cette séance.");
-  }
+  });
+
+  container.querySelectorAll("[data-delete-id]").forEach(button => {
+    button.addEventListener("click", () => {
+      deleteStudent(button.dataset.deleteId);
+    });
+  });
 }
 
+/* OUVRIR LE FORMULAIRE */
 
-async function saveEditedSession(sessionId, updates) {
-  await saveSession(sessionId, updates);
+function openStudentForm(student = null) {
+  const section = document.getElementById("student-form-section");
+
+  document.getElementById("student-form-heading").textContent =
+    student ? "Modifier l'élève" : "Ajouter un élève";
+
+  document.getElementById("student-id").value = student?.id || "";
+  document.getElementById("student-name").value = student?.name || "";
+  document.getElementById("student-class").value = student?.class || "";
+
+  section.classList.remove("hidden");
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+/* FERMER LE FORMULAIRE */
 
-async function deleteSession(sessionId) {
-  if (!confirm("Voulez-vous vraiment supprimer cette séance ?")) {
-    return;
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from("Sessions")
-      .delete()
-      .eq("id", sessionId);
-
-    if (error) throw error;
-
-    alert("Séance supprimée.");
-    showSessions();
-  } catch (error) {
-    console.error("Erreur lors de la suppression de la séance :", error);
-    alert("Impossible de supprimer cette séance.");
-  }
+function closeStudentForm() {
+  document.getElementById("student-form").reset();
+  document.getElementById("student-id").value = "";
+  document.getElementById("student-form-section").classList.add("hidden");
 }
 
+/* ENREGISTRER UN ÉLÈVE */
 
-/*
- * La table ou le système de stockage des documents PDF n'étant
- * pas défini dans le script fourni, cette fonction évite une
- * erreur lorsque l'utilisateur clique sur « Documents PDF ».
- */
-function showAllSubjectDocuments() {
-  app().innerHTML = `
-    <div class="dashboard">
-      <div class="topbar">
-        <h1>Documents PDF</h1>
-        <button onclick="showSessions()">Retour aux séances</button>
-      </div>
-
-      <section class="card">
-        <p>
-          La section Documents PDF n'est pas encore configurée.
-          Le stockage et la liste des documents devront être reliés
-          à leur table ou espace de stockage.
-        </p>
-      </section>
-    </div>
-  `;
-}
-
-
-/* =========================================================
-   PARTIE 4/5 — NOTES ET PROGRÈS
-   ========================================================= */
-
-/* ---------- GESTION DES NOTES ---------- */
-
-async function showNotes() {
-  if (!currentStudent) {
-    showDashboard();
-    return;
-  }
-
-  app().innerHTML = `
-    <div class="dashboard">
-      <div class="topbar">
-        <h1>Notes de ${escapeHTML(currentStudent.name)}</h1>
-        <button onclick="renderStudentPage()">Retour à l'élève</button>
-      </div>
-
-      <section class="card">
-        <h2>Ajouter une note</h2>
-
-        <form onsubmit="addNote(event)">
-          <label for="note-subject">Matière</label>
-          <input
-            id="note-subject"
-            name="subject"
-            type="text"
-            required
-            placeholder="Ex. : Français"
-          >
-
-          <label for="note-value">Note obtenue</label>
-          <input
-            id="note-value"
-            name="grade"
-            type="text"
-            required
-            placeholder="Ex. : 15/20"
-          >
-
-          <label for="note-date">Date</label>
-          <input
-            id="note-date"
-            name="date"
-            type="date"
-            required
-            value="${new Date().toISOString().slice(0, 10)}"
-          >
-
-          <label for="note-comment">Commentaire</label>
-          <textarea
-            id="note-comment"
-            name="comment"
-            placeholder="Commentaire facultatif"
-          ></textarea>
-
-          <button type="submit">Enregistrer la note</button>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>Notes enregistrées</h2>
-        <div id="notes-list">Chargement des notes...</div>
-      </section>
-    </div>
-  `;
-
-  await loadNotes();
-}
-
-
-async function loadNotes() {
-  const list = document.getElementById("notes-list");
-
-  if (!list || !currentStudent) return;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("Notes")
-      .select("*")
-      .eq("student_id", currentStudent.id)
-      .order("date", { ascending: false });
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      list.innerHTML = "<p>Aucune note enregistrée.</p>";
-      return;
-    }
-
-    list.innerHTML = data.map(note => `
-      <article class="card">
-        <h3>${escapeHTML(note.subject || "Matière non renseignée")}</h3>
-
-        <p>
-          <strong>Note :</strong>
-          ${escapeHTML(normalizeGrade(note.grade))}
-        </p>
-
-        <p>
-          <strong>Date :</strong>
-          ${escapeHTML(formatDate(note.date))}
-        </p>
-
-        <p>
-          <strong>Commentaire :</strong>
-          ${escapeHTML(note.comment || "Aucun commentaire")}
-        </p>
-
-        <button onclick="editNote('${note.id}')">Modifier</button>
-        <button onclick="deleteNote('${note.id}')">Supprimer</button>
-      </article>
-    `).join("");
-  } catch (error) {
-    console.error("Erreur lors du chargement des notes :", error);
-    list.innerHTML = `
-      <p>Impossible de charger les notes.</p>
-      <button onclick="loadNotes()">Réessayer</button>
-    `;
-  }
-}
-
-
-async function addNote(event) {
+async function saveStudent(event) {
   event.preventDefault();
 
-  if (!currentStudent) {
-    alert("Aucun élève sélectionné.");
+  const button = document.getElementById("save-student-button");
+  const id = document.getElementById("student-id").value;
+  const name = document.getElementById("student-name").value.trim();
+  const studentClass = document.getElementById("student-class").value.trim();
+
+  if (!name) {
+    showMessage("Le nom de l'élève est obligatoire.", "error");
     return;
   }
 
-  const formData = new FormData(event.target);
-
-  const subject = String(formData.get("subject") || "").trim();
-  const grade = String(formData.get("grade") || "").trim();
-  const date = String(formData.get("date") || "");
-  const comment = String(formData.get("comment") || "").trim();
-
-  if (!subject || !grade || !date) {
-    alert("Merci de remplir la matière, la note et la date.");
-    return;
-  }
+  button.disabled = true;
 
   try {
-    const { error } = await supabaseClient
-      .from("Notes")
-      .insert([{
-        student_id: currentStudent.id,
-        subject,
-        grade: normalizeGrade(grade),
-        date,
-        comment
-      }]);
+    let query;
 
-    if (error) throw error;
-
-    alert("Note enregistrée.");
-    showNotes();
-  } catch (error) {
-    console.error("Erreur lors de l'ajout de la note :", error);
-    alert("Impossible d'enregistrer la note. Vérifie les champs et les autorisations.");
-  }
-}
-
-
-async function editNote(noteId) {
-  try {
-    const { data: note, error } = await supabaseClient
-      .from("Notes")
-      .select("*")
-      .eq("id", noteId)
-      .single();
-
-    if (error) throw error;
-
-    const subject = prompt("Matière :", note.subject || "");
-    if (subject === null) return;
-
-    const grade = prompt("Note obtenue :", note.grade || "");
-    if (grade === null) return;
-
-    const date = prompt("Date (AAAA-MM-JJ) :", note.date || "");
-    if (date === null) return;
-
-    const comment = prompt("Commentaire :", note.comment || "");
-    if (comment === null) return;
-
-    if (!subject.trim() || !grade.trim() || !date.trim()) {
-      alert("La matière, la note et la date sont obligatoires.");
-      return;
+    if (id) {
+      query = db.from("Students")
+        .update({ name, class: studentClass || null })
+        .eq("id", id);
+    } else {
+      query = db.from("Students")
+        .insert({ name, class: studentClass || null });
     }
 
-    const { error: updateError } = await supabaseClient
-      .from("Notes")
-      .update({
-        subject: subject.trim(),
-        grade: normalizeGrade(grade.trim()),
-        date: date.trim(),
-        comment: comment.trim()
-      })
-      .eq("id", noteId);
+    const { error } = await query;
+    if (error) throw error;
 
-    if (updateError) throw updateError;
-
-    alert("Note modifiée.");
-    showNotes();
+    closeStudentForm();
+    showMessage("Élève enregistré avec succès.", "success");
+    await loadStudents();
   } catch (error) {
-    console.error("Erreur lors de la modification de la note :", error);
-    alert("Impossible de modifier cette note.");
+    showMessage(error.message || "Erreur d'enregistrement.", "error");
+  } finally {
+    button.disabled = false;
   }
 }
 
+/* SUPPRIMER UN ÉLÈVE */
 
-async function deleteNote(noteId) {
-  if (!confirm("Voulez-vous vraiment supprimer cette note ?")) {
-    return;
-  }
+async function deleteStudent(id) {
+  const student = students.find(item => String(item.id) === String(id));
+  if (!student) return;
+
+  if (!confirm(`Supprimer l'élève ${student.name} ?`)) return;
 
   try {
-    const { error } = await supabaseClient
-      .from("Notes")
+    const { error } = await db
+      .from("Students")
       .delete()
-      .eq("id", noteId);
+      .eq("id", id);
 
     if (error) throw error;
 
-    alert("Note supprimée.");
-    showNotes();
+    showMessage("Élève supprimé.", "success");
+    await loadStudents();
   } catch (error) {
-    console.error("Erreur lors de la suppression de la note :", error);
-    alert("Impossible de supprimer cette note.");
+    showMessage(error.message || "Erreur de suppression.", "error");
   }
 }
 
-
-/* ---------- SUIVI DES PROGRÈS ---------- */
-
-async function showProgress() {
-  if (!currentStudent) {
-    showDashboard();
-    return;
-  }
-
-  app().innerHTML = `
-    <div class="dashboard">
-      <div class="topbar">
-        <h1>Progrès de ${escapeHTML(currentStudent.name)}</h1>
-        <button onclick="renderStudentPage()">Retour à l'élève</button>
-      </div>
-
-      <section class="card">
-        <h2>Ajouter un suivi de progrès</h2>
-
-        <form onsubmit="addProgress(event)">
-          <label for="progress-subject">Matière</label>
-          <input
-            id="progress-subject"
-            name="subject"
-            type="text"
-            required
-            placeholder="Ex. : Mathématiques"
-          >
-
-          <label for="progress-date">Date</label>
-          <input
-            id="progress-date"
-            name="date"
-            type="date"
-            required
-            value="${new Date().toISOString().slice(0, 10)}"
-          >
-
-          <label for="progress-description">Progrès constatés</label>
-          <textarea
-            id="progress-description"
-            name="description"
-            required
-            placeholder="Décris les progrès observés..."
-          ></textarea>
-
-          <button type="submit">Enregistrer le progrès</button>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>Historique des progrès</h2>
-        <div id="progress-list">Chargement des progrès...</div>
-      </section>
-    </div>
-  `;
-
-  await loadProgress();
-}
-
-
-async function loadProgress() {
-  const list = document.getElementById("progress-list");
-
-  if (!list || !currentStudent) return;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("Progress")
-      .select("*")
-      .eq("student_id", currentStudent.id)
-      .order("date", { ascending: false });
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      list.innerHTML = "<p>Aucun progrès enregistré pour le moment.</p>";
-      return;
-    }
-
-    list.innerHTML = data.map(progress => `
-      <article class="card">
-        <h3>${escapeHTML(progress.subject || "Matière non renseignée")}</h3>
-
-        <p>
-          <strong>Date :</strong>
-          ${escapeHTML(formatDate(progress.date))}
-        </p>
-
-        <p>
-          ${escapeHTML(progress.description || progress.notes || "Aucune description")}
-        </p>
-
-        <button onclick="editProgress('${progress.id}')">Modifier</button>
-        <button onclick="deleteProgress('${progress.id}')">Supprimer</button>
-      </article>
-    `).join("");
-  } catch (error) {
-    console.error("Erreur lors du chargement des progrès :", error);
-    list.innerHTML = `
-      <p>Impossible de charger les progrès.</p>
-      <button onclick="loadProgress()">Réessayer</button>
-    `;
-  }
-}
-
-
-async function addProgress(event) {
-  event.preventDefault();
-
-  if (!currentStudent) {
-    alert("Aucun élève sélectionné.");
-    return;
-  }
-
-  const formData = new FormData(event.target);
-
-  const subject = String(formData.get("subject") || "").trim();
-  const date = String(formData.get("date") || "");
-  const description = String(formData.get("description") || "").trim();
-
-  if (!subject || !date || !description) {
-    alert("Merci de remplir tous les champs obligatoires.");
-    return;
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from("Progress")
-      .insert([{
-        student_id: currentStudent.id,
-        subject,
-        date,
-        description
-      }]);
-
-    if (error) throw error;
-
-    alert("Progrès enregistré.");
-    showProgress();
-  } catch (error) {
-    console.error("Erreur lors de l'ajout du progrès :", error);
-    alert("Impossible d'enregistrer ce progrès.");
-  }
-}
-
-
-async function editProgress(progressId) {
-  try {
-    const { data: progress, error } = await supabaseClient
-      .from("Progress")
-      .select("*")
-      .eq("id", progressId)
-      .single();
-
-    if (error) throw error;
-
-    const subject = prompt("Matière :", progress.subject || "");
-    if (subject === null) return;
-
-    const date = prompt("Date (AAAA-MM-JJ) :", progress.date || "");
-    if (date === null) return;
-
-    const description = prompt(
-      "Progrès constatés :",
-      progress.description || progress.notes || ""
-    );
-
-    if (description === null) return;
-
-    if (!subject.trim() || !date.trim() || !description.trim()) {
-      alert("Tous les champs sont obligatoires.");
-      return;
-    }
-
-    const { error: updateError } = await supabaseClient
-      .from("Progress")
-      .update({
-        subject: subject.trim(),
-        date: date.trim(),
-        description: description.trim()
-      })
-      .eq("id", progressId);
-
-    if (updateError) throw updateError;
-
-    alert("Progrès modifié.");
-    showProgress();
-  } catch (error) {
-    console.error("Erreur lors de la modification du progrès :", error);
-    alert("Impossible de modifier ce progrès.");
-  }
-}
-
-
-async function deleteProgress(progressId) {
-  if (!confirm("Voulez-vous vraiment supprimer ce suivi de progrès ?")) {
-    return;
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from("Progress")
-      .delete()
-      .eq("id", progressId);
-
-    if (error) throw error;
-
-    alert("Suivi de progrès supprimé.");
-    showProgress();
-  } catch (error) {
-    console.error("Erreur lors de la suppression du progrès :", error);
-    alert("Impossible de supprimer ce suivi.");
-  }
-}
-
-
-/* =========================================================
-   PARTIE 5/5 — DIFFICULTÉS, DÉCONNEXION ET DÉMARRAGE
-   ========================================================= */
-
-/* ---------- GESTION DES DIFFICULTÉS ---------- */
-
-async function showDifficulties() {
-  if (!currentStudent) {
-    showDashboard();
-    return;
-  }
-
-  app().innerHTML = `
-    <div class="dashboard">
-      <div class="topbar">
-        <h1>Difficultés de ${escapeHTML(currentStudent.name)}</h1>
-        <button onclick="renderStudentPage()">Retour à l'élève</button>
-      </div>
-
-      <section class="card">
-        <h2>Ajouter une difficulté</h2>
-
-        <form onsubmit="addDifficulty(event)">
-          <label for="difficulty-subject">Matière</label>
-          <input
-            id="difficulty-subject"
-            name="subject"
-            type="text"
-            required
-            placeholder="Ex. : Français"
-          >
-
-          <label for="difficulty-description">Description</label>
-          <textarea
-            id="difficulty-description"
-            name="description"
-            required
-            placeholder="Décris la difficulté rencontrée..."
-          ></textarea>
-
-          <label for="difficulty-date">Date</label>
-          <input
-            id="difficulty-date"
-            name="date"
-            type="date"
-            required
-            value="${new Date().toISOString().slice(0, 10)}"
-          >
-
-          <button type="submit">Enregistrer la difficulté</button>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>Difficultés enregistrées</h2>
-        <div id="difficulties-list">Chargement des difficultés...</div>
-      </section>
-    </div>
-  `;
-
-  await loadDifficulties();
-}
-
-
-async function loadDifficulties() {
-  const list = document.getElementById("difficulties-list");
-
-  if (!list || !currentStudent) return;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("Difficulties")
-      .select("*")
-      .eq("student_id", currentStudent.id)
-      .order("date", { ascending: false });
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      list.innerHTML = "<p>Aucune difficulté enregistrée.</p>";
-      return;
-    }
-
-    list.innerHTML = data.map(difficulty => `
-      <article class="card">
-        <h3>${escapeHTML(difficulty.subject || "Matière non renseignée")}</h3>
-
-        <p>
-          <strong>Date :</strong>
-          ${escapeHTML(formatDate(difficulty.date))}
-        </p>
-
-        <p>
-          ${escapeHTML(
-            difficulty.description ||
-            difficulty.notes ||
-            "Aucune description"
-          )}
-        </p>
-
-        <button onclick="editDifficulty('${difficulty.id}')">
-          Modifier
-        </button>
-
-        <button onclick="deleteDifficulty('${difficulty.id}')">
-          Supprimer
-        </button>
-      </article>
-    `).join("");
-  } catch (error) {
-    console.error("Erreur lors du chargement des difficultés :", error);
-
-    list.innerHTML = `
-      <p>Impossible de charger les difficultés.</p>
-      <button onclick="loadDifficulties()">Réessayer</button>
-    `;
-  }
-}
-
-
-async function addDifficulty(event) {
-  event.preventDefault();
-
-  if (!currentStudent) {
-    alert("Aucun élève sélectionné.");
-    return;
-  }
-
-  const formData = new FormData(event.target);
-
-  const subject = String(formData.get("subject") || "").trim();
-  const description = String(formData.get("description") || "").trim();
-  const date = String(formData.get("date") || "");
-
-  if (!subject || !description || !date) {
-    alert("Merci de remplir tous les champs obligatoires.");
-    return;
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from("Difficulties")
-      .insert([{
-        student_id: currentStudent.id,
-        subject,
-        description,
-        date
-      }]);
-
-    if (error) throw error;
-
-    alert("Difficulté enregistrée.");
-    showDifficulties();
-  } catch (error) {
-    console.error("Erreur lors de l'ajout de la difficulté :", error);
-    alert("Impossible d'enregistrer cette difficulté.");
-  }
-}
-
-
-async function editDifficulty(difficultyId) {
-  try {
-    const { data: difficulty, error } = await supabaseClient
-      .from("Difficulties")
-      .select("*")
-      .eq("id", difficultyId)
-      .single();
-
-    if (error) throw error;
-
-    const subject = prompt(
-      "Matière :",
-      difficulty.subject || ""
-    );
-
-    if (subject === null) return;
-
-    const description = prompt(
-      "Description :",
-      difficulty.description || difficulty.notes || ""
-    );
-
-    if (description === null) return;
-
-    const date = prompt(
-      "Date (AAAA-MM-JJ) :",
-      difficulty.date || ""
-    );
-
-    if (date === null) return;
-
-    if (!subject.trim() || !description.trim() || !date.trim()) {
-      alert("Tous les champs sont obligatoires.");
-      return;
-    }
-
-    const { error: updateError } = await supabaseClient
-      .from("Difficulties")
-      .update({
-        subject: subject.trim(),
-        description: description.trim(),
-        date: date.trim()
-      })
-      .eq("id", difficultyId);
-
-    if (updateError) throw updateError;
-
-    alert("Difficulté modifiée.");
-    showDifficulties();
-  } catch (error) {
-    console.error("Erreur lors de la modification de la difficulté :", error);
-    alert("Impossible de modifier cette difficulté.");
-  }
-}
-
-
-async function deleteDifficulty(difficultyId) {
-  if (!confirm("Voulez-vous vraiment supprimer cette difficulté ?")) {
-    return;
-  }
-
-  try {
-    const { error } = await supabaseClient
-      .from("Difficulties")
-      .delete()
-      .eq("id", difficultyId);
-
-    if (error) throw error;
-
-    alert("Difficulté supprimée.");
-    showDifficulties();
-  } catch (error) {
-    console.error("Erreur lors de la suppression de la difficulté :", error);
-    alert("Impossible de supprimer cette difficulté.");
-  }
-}
-
-
-/* ---------- DÉCONNEXION ---------- */
+/* DÉCONNEXION */
 
 async function logout() {
-  try {
-    const { error } = await supabaseClient.auth.signOut();
+  const { error } = await db.auth.signOut();
 
-    if (error) throw error;
-
-    currentStudent = null;
-    showHome();
-  } catch (error) {
-    console.error("Erreur lors de la déconnexion :", error);
-    alert("La déconnexion a échoué. Réessaie.");
+  if (error) {
+    showMessage(error.message || "Déconnexion impossible.", "error");
+    return;
   }
+
+  currentUser = null;
+  students = [];
+  showLogin();
 }
 
-
-/* ---------- DÉMARRAGE DE L'APPLICATION ---------- */
+/* DÉMARRAGE */
 
 async function startApp() {
   try {
-    if (typeof supabase === "undefined") {
-      throw new Error(
-        "La bibliothèque Supabase n'a pas été chargée. Vérifie le script CDN dans ton fichier HTML."
-      );
-    }
-
-    if (typeof supabaseClient === "undefined" || !supabaseClient) {
-      throw new Error("Le client Supabase n'est pas initialisé.");
-    }
-
-    const { data, error } = await supabaseClient.auth.getSession();
+    const { data, error } = await db.auth.getSession();
 
     if (error) throw error;
 
-    const session = data?.session;
+    currentUser = data.session?.user || null;
 
-    if (!session) {
-      showHome();
-      return;
-    }
-
-    const { data: teacher, error: teacherError } = await supabaseClient
-      .from("Teachers")
-      .select("*")
-      .eq("id", session.user.id)
-      .maybeSingle();
-
-    if (teacherError) throw teacherError;
-
-    if (teacher) {
-      currentTeacher = teacher;
-      showDashboard();
+    if (currentUser) {
+      await showDashboard();
     } else {
-      showHome();
+      showLogin();
     }
   } catch (error) {
-    console.error("Erreur au démarrage de l'application :", error);
-
-    const root = document.getElementById("app");
-
-    if (root) {
-      root.innerHTML = `
-        <div class="dashboard">
-          <section class="card">
-            <h1>Impossible de démarrer l'application</h1>
-
-            <p>
-              Une erreur est survenue lors de la connexion au service.
-              Vérifie ta connexion Internet et la configuration Supabase.
-            </p>
-
-            <button onclick="startApp()">Réessayer</button>
-
-            <button onclick="showHome()">Retour à l'accueil</button>
-          </section>
-        </div>
-      `;
-    }
+    app.innerHTML = `
+      <main class="login-page">
+        <section class="login-box">
+          <h1>NSK Éducation</h1>
+          <p class="error-text">
+            Impossible de démarrer : ${escapeHTML(error.message)}
+          </p>
+          <button onclick="location.reload()" type="button">
+            Réessayer
+          </button>
+        </section>
+      </main>
+    `;
   }
 }
 
-
-/* ---------- LANCEMENT ---------- */
-
-document.addEventListener("DOMContentLoaded", () => {
-  startApp();
-});
-
-
+startApp();
