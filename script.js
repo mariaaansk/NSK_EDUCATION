@@ -1,8 +1,4 @@
 
-/* =========================================================
-   NSK ÉDUCATION — ÉLÈVES, SÉANCES ET DOCUMENTS PDF
-   ========================================================= */
-
 const SUPABASE_URL = "https://hztywwjrjkihivupcmad.supabase.co";
 const SUPABASE_KEY = "sb_publishable_am_wEiQkh4F-9VhIUC0LFg_zux-_jgu";
 
@@ -11,963 +7,1025 @@ const LESSONS_TABLE = "Lessons";
 const DOCUMENTS_TABLE = "Lessons_documents";
 const DOCUMENTS_BUCKET = "lesson-pdfs";
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const app = document.getElementById("app");
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
 let currentUser = null;
+let currentStudent = null;
+let currentLesson = null;
 let students = [];
 let lessons = [];
 let documents = [];
-let selectedStudent = null;
-let editingStudentId = null;
-let editingLessonId = null;
 
-/* ================= OUTILS ================= */
+/* ------------------------------
+   UTILITAIRES
+------------------------------ */
 
-function esc(value) {
-  return String(value ?? "").replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;",
-    '"': "&quot;", "'": "&#39;"
-  })[c]);
+function $(id) {
+  return document.getElementById(id);
+}
+
+function showMessage(message, type = "info") {
+  const target = $("message");
+
+  if (target) {
+    target.textContent = message;
+    target.className = `message ${type}`;
+    target.classList.remove("hidden");
+
+    return;
+  }
+
+  if (type === "error") {
+    alert(message);
+  } else {
+    console.log(message);
+  }
+}
+
+function hideMessage() {
+  const target = $("message");
+
+  if (target) {
+    target.textContent = "";
+    target.classList.add("hidden");
+  }
+}
+
+function showSection(id) {
+  document.querySelectorAll(".app-section").forEach(section => {
+    section.classList.add("hidden");
+  });
+
+  const section = $(id);
+
+  if (section) {
+    section.classList.remove("hidden");
+  }
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[char]);
 }
 
 function formatDate(value) {
   if (!value) return "Date non renseignée";
-  const d = new Date(value + "T00:00:00");
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("fr-FR");
+
+  const date = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("fr-FR");
 }
 
-function showMessage(text, type = "info") {
-  let box = document.getElementById("app-message");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "app-message";
-    box.setAttribute("role", "status");
-    app.prepend(box);
-  }
-  box.className = "alert " + type;
-  box.textContent = text;
-}
+function setValue(id, value) {
+  const element = $(id);
 
-function showError(error) {
-  console.error(error);
-  let text = error?.message || "Une erreur est survenue.";
-
-  if (/row-level security|permission denied/i.test(text)) {
-    text = "Accès refusé par Supabase. Vérifie les politiques d'accès.";
-  } else if (/student_id/i.test(text)) {
-    text += " Vérifie la colonne student_id de la table Lessons.";
-  }
-
-  showMessage(text, "error");
-}
-
-function hide(id) {
-  document.getElementById(id)?.classList.add("hidden");
-}
-
-function reveal(id) {
-  document.getElementById(id)?.classList.remove("hidden");
-}
-
-function closeForms() {
-  hide("student-form-section");
-  hide("lesson-form-section");
-  hide("document-form-section");
-}
-
-/* ================= CONNEXION ================= */
-
-function renderLogin() {
-  app.innerHTML = `
-    <main class="login-page">
-      <section class="login-box">
-        <h1>NSK Éducation</h1>
-        <p>Connecte-toi à ton espace enseignant.</p>
-
-        <form id="login-form">
-          <div class="form-group">
-            <label for="login-email">Adresse e-mail</label>
-            <input id="login-email" type="email"
-              autocomplete="email" required>
-          </div>
-          <div class="form-group">
-            <label for="login-password">Mot de passe</label>
-            <input id="login-password" type="password"
-              autocomplete="current-password" required>
-          </div>
-          <p id="login-error" class="error-text"></p>
-          <button id="login-submit" type="submit">Se connecter</button>
-        </form>
-
-        <button id="signup-button" class="secondary w-full mt-2"
-          type="button">Créer un compte</button>
-        <button id="reset-button" class="link-button w-full"
-          type="button">Mot de passe oublié ?</button>
-      </section>
-    </main>`;
-
-  document.getElementById("login-form").addEventListener("submit", signIn);
-  document.getElementById("signup-button").addEventListener("click", signUp);
-  document.getElementById("reset-button").addEventListener("click", resetPassword);
-}
-
-async function signIn(event) {
-  event.preventDefault();
-  const button = document.getElementById("login-submit");
-  button.disabled = true;
-  button.textContent = "Connexion...";
-
-  try {
-    const { data, error } = await db.auth.signInWithPassword({
-      email: document.getElementById("login-email").value.trim(),
-      password: document.getElementById("login-password").value
-    });
-    if (error) throw error;
-    currentUser = data.user;
-    await renderDashboard();
-  } catch (error) {
-    document.getElementById("login-error").textContent =
-      error.message || "Connexion impossible.";
-  } finally {
-    const b = document.getElementById("login-submit");
-    if (b) {
-      b.disabled = false;
-      b.textContent = "Se connecter";
-    }
+  if (element) {
+    element.value = value ?? "";
   }
 }
 
-async function signUp() {
-  const email = prompt("Adresse e-mail :");
-  if (!email) return;
+function getValue(id) {
+  return $(id)?.value?.trim() ?? "";
+}
 
-  const password = prompt("Choisis un mot de passe d'au moins 8 caractères :");
-  if (!password) return;
+function setText(id, value) {
+  const element = $(id);
 
-  if (password.length < 8) {
-    alert("Le mot de passe doit contenir au moins 8 caractères.");
+  if (element) {
+    element.textContent = value ?? "";
+  }
+}
+
+function requireStudent() {
+  if (!currentStudent) {
+    showMessage("Sélectionne d'abord un élève.", "error");
+    return false;
+  }
+
+  return true;
+}
+
+/* ------------------------------
+   AUTHENTIFICATION
+------------------------------ */
+
+async function checkSession() {
+  const { data, error } = await db.auth.getSession();
+
+  if (error) {
+    showMessage(error.message, "error");
     return;
   }
 
-  try {
-    const { data, error } = await db.auth.signUp({
-      email: email.trim(), password
-    });
-    if (error) throw error;
+  currentUser = data.session?.user ?? null;
+  updateAuthView();
 
-    if (data.session) {
-      currentUser = data.user;
-      await renderDashboard();
-    } else {
-      alert("Compte créé. Vérifie tes e-mails si une confirmation est demandée.");
-    }
-  } catch (error) {
-    alert(error.message || "Création du compte impossible.");
+  if (currentUser) {
+    await loadStudents();
+  }
+}
+
+function updateAuthView() {
+  const loginSection = $("login-section");
+  const appSection = $("app-section");
+  const userEmail = $("user-email");
+
+  if (loginSection) {
+    loginSection.classList.toggle("hidden", Boolean(currentUser));
+  }
+
+  if (appSection) {
+    appSection.classList.toggle("hidden", !currentUser);
+  }
+
+  if (userEmail) {
+    userEmail.textContent = currentUser?.email ?? "";
+  }
+}
+
+async function login(event) {
+  event?.preventDefault();
+  hideMessage();
+
+  const email = getValue("login-email");
+  const password = $("login-password")?.value ?? "";
+
+  if (!email || !password) {
+    showMessage("Renseigne ton adresse e-mail et ton mot de passe.", "error");
+    return;
+  }
+
+  const { data, error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    showMessage(error.message, "error");
+    return;
+  }
+
+  currentUser = data.user;
+  updateAuthView();
+  await loadStudents();
+}
+
+async function signup(event) {
+  event?.preventDefault();
+  hideMessage();
+
+  const email = getValue("login-email");
+  const password = $("login-password")?.value ?? "";
+
+  if (!email || !password) {
+    showMessage("Renseigne ton adresse e-mail et ton mot de passe.", "error");
+    return;
+  }
+
+  const { data, error } = await db.auth.signUp({
+    email,
+    password
+  });
+
+  if (error) {
+    showMessage(error.message, "error");
+    return;
+  }
+
+  if (data.session) {
+    currentUser = data.user;
+    updateAuthView();
+    await loadStudents();
+  } else {
+    showMessage(
+      "Compte créé. Vérifie tes e-mails pour confirmer ton inscription.",
+      "success"
+    );
   }
 }
 
 async function resetPassword() {
-  const email = prompt("Adresse e-mail de ton compte :");
-  if (!email) return;
+  const email = getValue("login-email");
 
-  try {
-    const { error } = await db.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: window.location.origin
-    });
-    if (error) throw error;
-    alert("Si le compte existe, un e-mail sera envoyé.");
-  } catch (error) {
-    alert(error.message || "Envoi impossible.");
+  if (!email) {
+    showMessage(
+      "Saisis ton adresse e-mail dans le champ de connexion.",
+      "error"
+    );
+    return;
   }
+
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+
+  if (error) {
+    showMessage(error.message, "error");
+    return;
+  }
+
+  showMessage("E-mail de réinitialisation envoyé.", "success");
 }
 
-async function signOut() {
+async function logout() {
   const { error } = await db.auth.signOut();
-  if (error) return showError(error);
+
+  if (error) {
+    showMessage(error.message, "error");
+    return;
+  }
 
   currentUser = null;
-  selectedStudent = null;
-  renderLogin();
+  currentStudent = null;
+  currentLesson = null;
+  students = [];
+  lessons = [];
+  documents = [];
+
+  updateAuthView();
+  showSection("login-section");
 }
 
-/* ================= TABLEAU DE BORD ================= */
-
-async function renderDashboard() {
-  app.innerHTML = `
-    <div class="dashboard">
-      <header class="topbar">
-        <div class="topbar-brand">
-          <div class="topbar-logo">NSK</div>
-          <span>NSK Éducation</span>
-        </div>
-        <button id="logout-button" class="secondary" type="button">
-          Déconnexion
-        </button>
-      </header>
-
-      <main class="dashboard-content">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title">Mon espace enseignant</h1>
-            <p>${esc(currentUser?.email || "")}</p>
-          </div>
-          <button id="add-student-button" type="button">
-            + Ajouter un élève
-          </button>
-        </div>
-
-        <div id="dashboard-message" role="status"></div>
-
-        <section class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-label">Élèves</div>
-            <div class="stat-value" id="stat-students">0</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Séances</div>
-            <div class="stat-value" id="stat-lessons">0</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Documents</div>
-            <div class="stat-value" id="stat-documents">0</div>
-          </div>
-        </section>
-
-        <section id="students-section" class="card mt-3">
-          <h2>Mes élèves</h2>
-          <div class="form-group">
-            <label for="student-search">Rechercher un élève</label>
-            <input id="student-search" type="search"
-              placeholder="Nom ou classe...">
-          </div>
-          <div id="students-list">Chargement...</div>
-        </section>
-
-        <section id="student-form-section" class="card mt-3 hidden">
-          <h2 id="student-form-title">Ajouter un élève</h2>
-          <form id="student-form">
-            <div class="form-group">
-              <label for="student-name">Nom de l'élève</label>
-              <input id="student-name" maxlength="150" required>
-            </div>
-            <div class="form-group">
-              <label for="student-class">Classe</label>
-              <input id="student-class" maxlength="100">
-            </div>
-            <div class="form-actions">
-              <button id="save-student" type="submit">Enregistrer</button>
-              <button id="cancel-student" class="secondary"
-                type="button">Annuler</button>
-            </div>
-          </form>
-        </section>
-
-        <section id="student-profile" class="card mt-3 hidden">
-          <button id="back-to-students" class="secondary" type="button">
-            ← Retour aux élèves
-          </button>
-          <div id="student-details" class="mt-3"></div>
-          <div class="form-actions">
-            <button id="edit-profile" class="secondary" type="button">
-              Modifier l'élève
-            </button>
-            <button id="new-lesson" type="button">
-              + Ajouter une séance
-            </button>
-          </div>
-          <hr>
-          <h2>Ses séances</h2>
-          <div id="profile-lessons"></div>
-          <hr>
-          <h2>Ses documents PDF</h2>
-          <div id="profile-documents"></div>
-        </section>
-
-        <section id="lesson-form-section" class="card mt-3 hidden">
-          <h2 id="lesson-form-title">Ajouter une séance</h2>
-          <form id="lesson-form">
-            <div class="form-group">
-              <label for="lesson-student">Élève</label>
-              <select id="lesson-student" required></select>
-            </div>
-            <div class="form-group">
-              <label for="lesson-title">Titre de la séance</label>
-              <input id="lesson-title" maxlength="200" required>
-            </div>
-            <div class="form-group">
-              <label for="lesson-subject">Matière</label>
-              <input id="lesson-subject" maxlength="150">
-            </div>
-            <div class="form-group">
-              <label for="lesson-class">Classe</label>
-              <input id="lesson-class" maxlength="100">
-            </div>
-            <div class="form-group">
-              <label for="lesson-date">Date</label>
-              <input id="lesson-date" type="date">
-            </div>
-            <div class="form-group">
-              <label for="lesson-duration">Durée (minutes)</label>
-              <input id="lesson-duration" type="number" min="1" max="1440">
-            </div>
-            <div class="form-group">
-              <label for="lesson-content">Contenu de la séance</label>
-              <textarea id="lesson-content" rows="5"></textarea>
-            </div>
-            <div class="form-group">
-              <label for="lesson-conclusion">Conclusion / bilan</label>
-              <textarea id="lesson-conclusion" rows="3"></textarea>
-            </div>
-            <div class="form-actions">
-              <button id="save-lesson" type="submit">Enregistrer la séance</button>
-              <button id="cancel-lesson" class="secondary"
-                type="button">Annuler</button>
-            </div>
-          </form>
-        </section>
-
-        <section id="document-form-section" class="card mt-3 hidden">
-          <h2>Ajouter un PDF à une séance</h2>
-          <form id="document-form">
-            <div class="form-group">
-              <label for="document-lesson">Séance</label>
-              <select id="document-lesson" required></select>
-            </div>
-            <div class="form-group">
-              <label for="document-type">Type de document</label>
-              <input id="document-type" maxlength="100"
-                placeholder="Cours, exercices, correction...">
-            </div>
-            <div class="form-group">
-              <label for="document-file">Fichier PDF</label>
-              <input id="document-file" type="file"
-                accept=".pdf,application/pdf" required>
-            </div>
-            <div class="form-actions">
-              <button id="upload-pdf" type="submit">Envoyer le PDF</button>
-              <button id="cancel-document" class="secondary"
-                type="button">Annuler</button>
-            </div>
-          </form>
-        </section>
-      </main>
-    </div>`;
-
-  document.getElementById("logout-button").addEventListener("click", signOut);
-  document.getElementById("add-student-button").addEventListener("click", () => openStudentForm());
-  document.getElementById("student-form").addEventListener("submit", saveStudent);
-  document.getElementById("cancel-student").addEventListener("click", closeStudentForm);
-  document.getElementById("student-search").addEventListener("input", renderStudents);
-  document.getElementById("back-to-students").addEventListener("click", backToStudents);
-  document.getElementById("edit-profile").addEventListener("click", () => {
-    if (selectedStudent) openStudentForm(selectedStudent);
-  });
-  document.getElementById("new-lesson").addEventListener("click", () =>
-    openLessonForm(null, selectedStudent?.id));
-  document.getElementById("lesson-form").addEventListener("submit", saveLesson);
-  document.getElementById("cancel-lesson").addEventListener("click", closeLessonForm);
-  document.getElementById("document-form").addEventListener("submit", uploadPDF);
-  document.getElementById("cancel-document").addEventListener("click", closeDocumentForm);
-
-  await Promise.all([loadStudents(), loadLessons(), loadDocuments()]);
-}
-
-/* ================= ÉLÈVES ================= */
+/* ------------------------------
+   ÉLÈVES : CHARGEMENT
+------------------------------ */
 
 async function loadStudents() {
-  try {
-    const { data, error } = await db.from(STUDENTS_TABLE)
-      .select("id, name, class")
-      .order("name", { ascending: true });
+  if (!currentUser) return;
 
-    if (error) throw error;
+  hideMessage();
 
-    students = data || [];
-    document.getElementById("stat-students").textContent = students.length;
-    renderStudents();
-    updateStudentSelect();
-  } catch (error) {
-    showError(error);
-    document.getElementById("students-list").textContent =
-      error.message || "Chargement impossible.";
+  const { data, error } = await db
+    .from(STUDENTS_TABLE)
+    .select("*")
+    .order("name", { ascending: true });
+
+  if (error) {
+    showMessage(
+      "Impossible de charger les élèves : " + error.message,
+      "error"
+    );
+    return;
   }
+
+  students = data ?? [];
+  renderStudents();
+  updateStudentStats();
 }
 
 function renderStudents() {
-  const container = document.getElementById("students-list");
+  const container = $("students-list") || $("students-grid");
+
   if (!container) return;
 
-  const search = (document.getElementById("student-search")?.value || "")
-    .toLowerCase().trim();
-
-  const filtered = students.filter(s =>
-    String(s.name || "").toLowerCase().includes(search) ||
-    String(s.class || "").toLowerCase().includes(search)
-  );
-
-  if (!filtered.length) {
-    container.innerHTML = "<p>Aucun élève trouvé.</p>";
+  if (students.length === 0) {
+    container.innerHTML = "<p>Aucun élève pour le moment.</p>";
     return;
   }
 
-  container.innerHTML = `
-    <div class="students-grid">
-      ${filtered.map(s => `
-        <article class="student-card">
-          <button type="button" class="student-open"
-            data-open="${esc(s.id)}">
-            <h3>${esc(s.name)}</h3>
-            <p>Classe : ${esc(s.class || "Non renseignée")}</p>
-            <p>Ouvrir la fiche →</p>
-          </button>
-          <div class="form-actions">
-            <button class="secondary" type="button"
-              data-edit-student="${esc(s.id)}">Modifier</button>
-            <button class="danger" type="button"
-              data-delete-student="${esc(s.id)}">Supprimer</button>
-          </div>
-        </article>
-      `).join("")}
-    </div>`;
-
-  container.querySelectorAll("[data-open]").forEach(button => {
-    button.addEventListener("click", () => {
-      const student = students.find(s => String(s.id) === button.dataset.open);
-      if (student) openStudentProfile(student);
-    });
-  });
-
-  container.querySelectorAll("[data-edit-student]").forEach(button => {
-    button.addEventListener("click", () => {
-      const student = students.find(s => String(s.id) === button.dataset.editStudent);
-      if (student) openStudentForm(student);
-    });
-  });
-
-  container.querySelectorAll("[data-delete-student]").forEach(button => {
-    button.addEventListener("click", () => deleteStudent(button.dataset.deleteStudent));
-  });
-}
-
-function openStudentForm(student = null) {
-  editingStudentId = student?.id ?? null;
-  closeForms();
-
-  document.getElementById("student-form-title").textContent =
-    student ? "Modifier l'élève" : "Ajouter un élève";
-  document.getElementById("student-name").value = student?.name || "";
-  document.getElementById("student-class").value = student?.class || "";
-
-  reveal("student-form-section");
-  document.getElementById("student-form-section")
-    .scrollIntoView({ behavior: "smooth" });
-}
-
-function closeStudentForm() {
-  document.getElementById("student-form").reset();
-  editingStudentId = null;
-  hide("student-form-section");
-}
-
-async function saveStudent(event) {
-  event.preventDefault();
-  const button = document.getElementById("save-student");
-  button.disabled = true;
-
-  try {
-    const values = {
-      name: document.getElementById("student-name").value.trim(),
-      class: document.getElementById("student-class").value.trim() || null
-    };
-
-    if (!values.name) throw new Error("Le nom de l'élève est obligatoire.");
-
-    const query = editingStudentId !== null
-      ? db.from(STUDENTS_TABLE).update(values).eq("id", editingStudentId)
-      : db.from(STUDENTS_TABLE).insert(values);
-
-    const { error } = await query;
-    if (error) throw error;
-
-    closeStudentForm();
-    await loadStudents();
-
-    if (selectedStudent) {
-      selectedStudent = students.find(s =>
-        String(s.id) === String(selectedStudent.id)) || null;
-      if (selectedStudent) await openStudentProfile(selectedStudent);
-    }
-
-    showMessage("Élève enregistré.", "success");
-  } catch (error) {
-    showError(error);
-  } finally {
-    button.disabled = false;
-  }
-}
-
-async function deleteStudent(id) {
-  const student = students.find(s => String(s.id) === String(id));
-  if (!student || !confirm(`Supprimer l'élève ${student.name} ?`)) return;
-
-  try {
-    const { error } = await db.from(STUDENTS_TABLE).delete().eq("id", id);
-    if (error) throw error;
-
-    selectedStudent = null;
-    hide("student-profile");
-    await loadStudents();
-    showMessage("Élève supprimé.", "success");
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function openStudentProfile(student) {
-  selectedStudent = student;
-  closeForms();
-  hide("students-section");
-  reveal("student-profile");
-
-  document.getElementById("student-details").innerHTML = `
-    <h1>${esc(student.name)}</h1>
-    <p>Classe : ${esc(student.class || "Non renseignée")}</p>`;
-
-  document.getElementById("student-profile")
-    .scrollIntoView({ behavior: "smooth" });
-
-  await renderStudentLessons();
-}
-
-function backToStudents() {
-  selectedStudent = null;
-  hide("student-profile");
-  closeForms();
-  reveal("students-section");
-  renderStudents();
-}
-
-/* ================= SÉANCES ================= */
-
-async function loadLessons() {
-  try {
-    const { data, error } = await db.from(LESSONS_TABLE)
-      .select("id, created_at, student_id, title, class, content, subject, duration_minutes, lesson_date, conclusion")
-      .order("lesson_date", { ascending: false });
-
-    if (error) throw error;
-
-    lessons = data || [];
-    document.getElementById("stat-lessons").textContent = lessons.length;
-    updateStudentSelect();
-
-    if (selectedStudent) await renderStudentLessons();
-  } catch (error) {
-    showError(error);
-    document.getElementById("profile-lessons").textContent =
-      error.message || "Chargement des séances impossible.";
-  }
-}
-
-function updateStudentSelect() {
-  const select = document.getElementById("lesson-student");
-  if (!select) return;
-
-  const previous = select.value;
-
-  select.innerHTML = `
-    <option value="">Choisir un élève</option>
-    ${students.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}`;
-
-  if (students.some(s => String(s.id) === previous)) {
-    select.value = previous;
-  } else if (selectedStudent) {
-    select.value = String(selectedStudent.id);
-  }
-}
-
-function openLessonForm(lesson = null, studentId = null) {
-  if (!students.length) {
-    showMessage("Ajoute d'abord un élève.", "error");
-    return;
-  }
-
-  editingLessonId = lesson?.id ?? null;
-  closeForms();
-  updateStudentSelect();
-
-  document.getElementById("lesson-form-title").textContent =
-    lesson ? "Modifier la séance" : "Ajouter une séance";
-
-  document.getElementById("lesson-student").value = String(
-    lesson?.student_id ?? studentId ?? selectedStudent?.id ?? ""
-  );
-  document.getElementById("lesson-title").value = lesson?.title || "";
-  document.getElementById("lesson-subject").value = lesson?.subject || "";
-  document.getElementById("lesson-class").value =
-    lesson?.class || selectedStudent?.class || "";
-  document.getElementById("lesson-date").value = lesson?.lesson_date || "";
-  document.getElementById("lesson-duration").value = lesson?.duration_minutes || "";
-  document.getElementById("lesson-content").value = lesson?.content || "";
-  document.getElementById("lesson-conclusion").value = lesson?.conclusion || "";
-
-  reveal("lesson-form-section");
-  document.getElementById("lesson-form-section")
-    .scrollIntoView({ behavior: "smooth" });
-}
-
-function closeLessonForm() {
-  document.getElementById("lesson-form").reset();
-  editingLessonId = null;
-  hide("lesson-form-section");
-}
-
-async function saveLesson(event) {
-  event.preventDefault();
-  const button = document.getElementById("save-lesson");
-  button.disabled = true;
-
-  try {
-    const studentId = document.getElementById("lesson-student").value;
-    const title = document.getElementById("lesson-title").value.trim();
-    const student = students.find(s => String(s.id) === String(studentId));
-
-    if (!student) throw new Error("Choisis un élève valide.");
-    if (!title) throw new Error("Le titre de la séance est obligatoire.");
-
-    const values = {
-      student_id: studentId,
-      title,
-      subject: document.getElementById("lesson-subject").value.trim() || null,
-      class: document.getElementById("lesson-class").value.trim() || null,
-      lesson_date: document.getElementById("lesson-date").value || null,
-      duration_minutes: document.getElementById("lesson-duration").value
-        ? String(document.getElementById("lesson-duration").value) : null,
-      content: document.getElementById("lesson-content").value.trim() || null,
-      conclusion: document.getElementById("lesson-conclusion").value.trim() || null
-    };
-
-    const query = editingLessonId !== null
-      ? db.from(LESSONS_TABLE).update(values).eq("id", editingLessonId)
-      : db.from(LESSONS_TABLE).insert(values);
-
-    const { error } = await query;
-    if (error) throw error;
-
-    closeLessonForm();
-    await loadLessons();
-    await loadDocuments();
-    await openStudentProfile(student);
-    showMessage("Séance enregistrée.", "success");
-  } catch (error) {
-    showError(error);
-  } finally {
-    button.disabled = false;
-  }
-}
-
-async function renderStudentLessons() {
-  if (!selectedStudent) return;
-
-  const container = document.getElementById("profile-lessons");
-  const list = lessons.filter(l =>
-    String(l.student_id) === String(selectedStudent.id)
-  );
-
-  if (!list.length) {
-    container.innerHTML = "<p>Aucune séance enregistrée pour cet élève.</p>";
-    document.getElementById("profile-documents").innerHTML =
-      "<p>Aucun document pour le moment.</p>";
-    return;
-  }
-
-  container.innerHTML = list.map(lesson => `
-    <article class="card mt-3">
-      <h3>${esc(lesson.title)}</h3>
-      <p><strong>Date :</strong> ${esc(formatDate(lesson.lesson_date))}</p>
-      <p><strong>Matière :</strong> ${esc(lesson.subject || "Non renseignée")}</p>
-      <p><strong>Durée :</strong> ${esc(lesson.duration_minutes || "Non renseignée")}${lesson.duration_minutes ? " minutes" : ""}</p>
-      <p><strong>Contenu :</strong></p>
-      <p>${esc(lesson.content || "Aucun contenu").replace(/\n/g, "<br>")}</p>
-      <p><strong>Conclusion :</strong></p>
-      <p>${esc(lesson.conclusion || "Aucune conclusion").replace(/\n/g, "<br>")}</p>
+  container.innerHTML = students.map(student => `
+    <article class="student-card">
+      <h3>${escapeHTML(student.name)}</h3>
+      <p>Classe : ${escapeHTML(student.class || "Non renseignée")}</p>
       <div class="form-actions">
-        <button class="secondary" type="button"
-          data-edit-lesson="${esc(lesson.id)}">Modifier</button>
         <button type="button"
-          data-add-pdf="${esc(lesson.id)}">+ Ajouter un PDF</button>
-        <button class="danger" type="button"
-          data-delete-lesson="${esc(lesson.id)}">Supprimer</button>
+          onclick="openStudentProfile('${escapeHTML(student.id)}')">
+          Voir les séances
+        </button>
+        <button type="button" class="secondary"
+          onclick="editStudent('${escapeHTML(student.id)}')">
+          Modifier
+        </button>
+        <button type="button" class="danger"
+          onclick="deleteStudent('${escapeHTML(student.id)}')">
+          Supprimer
+        </button>
       </div>
     </article>
   `).join("");
-
-  container.querySelectorAll("[data-edit-lesson]").forEach(button => {
-    button.addEventListener("click", () => {
-      const lesson = lessons.find(l => String(l.id) === button.dataset.editLesson);
-      if (lesson) openLessonForm(lesson);
-    });
-  });
-
-  container.querySelectorAll("[data-add-pdf]").forEach(button => {
-    button.addEventListener("click", () => openDocumentForm(button.dataset.addPdf));
-  });
-
-  container.querySelectorAll("[data-delete-lesson]").forEach(button => {
-    button.addEventListener("click", () => deleteLesson(button.dataset.deleteLesson));
-  });
-
-  await renderStudentDocuments(list.map(l => l.id));
 }
 
-async function deleteLesson(id) {
-  const lesson = lessons.find(l => String(l.id) === String(id));
-  if (!lesson || !confirm(`Supprimer la séance « ${lesson.title} » ?`)) return;
-
-  try {
-    const related = documents.filter(d => String(d.lesson_id) === String(id));
-
-    for (const doc of related) {
-      if (doc.file_path) {
-        const { error } = await db.storage.from(DOCUMENTS_BUCKET).remove([doc.file_path]);
-        if (error) throw error;
-      }
-    }
-
-    if (related.length) {
-      const { error } = await db.from(DOCUMENTS_TABLE).delete().eq("lesson_id", id);
-      if (error) throw error;
-    }
-
-    const { error } = await db.from(LESSONS_TABLE).delete().eq("id", id);
-    if (error) throw error;
-
-    await loadLessons();
-    await loadDocuments();
-    showMessage("Séance supprimée.", "success");
-  } catch (error) {
-    showError(error);
-  }
+function updateStudentStats() {
+  setText("students-count", students.length);
 }
 
-/* ================= DOCUMENTS PDF ================= */
+/* ------------------------------
+   ÉLÈVES : AJOUT / MODIFICATION
+------------------------------ */
 
-async function loadDocuments() {
-  try {
-    const { data, error } = await db.from(DOCUMENTS_TABLE)
-      .select("id, created_at, lesson_id, file_name, file_path, document_type, lesson_title")
-      .order("created_at", { ascending: false });
+function openStudentForm(studentId = null) {
+  const student = studentId
+    ? students.find(item => String(item.id) === String(studentId))
+    : null;
 
-    if (error) throw error;
-
-    documents = data || [];
-    document.getElementById("stat-documents").textContent = documents.length;
-
-    if (selectedStudent) {
-      const list = lessons.filter(l =>
-        String(l.student_id) === String(selectedStudent.id));
-      await renderStudentDocuments(list.map(l => l.id));
-    }
-  } catch (error) {
-    showError(error);
-    document.getElementById("profile-documents").textContent =
-      error.message || "Chargement des documents impossible.";
-  }
-}
-
-function openDocumentForm(lessonId = null) {
-  if (!selectedStudent) {
-    showMessage("Ouvre d'abord la fiche d'un élève.", "error");
+  if (studentId && !student) {
+    showMessage("Élève introuvable.", "error");
     return;
   }
 
-  const list = lessons.filter(l =>
-    String(l.student_id) === String(selectedStudent.id));
+  setValue("student-id", student?.id ?? "");
+  setValue("student-name", student?.name ?? "");
+  setValue("student-class", student?.class ?? "");
 
-  if (!list.length) {
-    showMessage("Ajoute d'abord une séance à cet élève.", "error");
-    return;
-  }
+  const form = $("student-form");
 
-  closeForms();
-  document.getElementById("document-form").reset();
-
-  document.getElementById("document-lesson").innerHTML = list.map(l => `
-    <option value="${esc(l.id)}">${esc(l.title)} — ${esc(formatDate(l.lesson_date))}</option>
-  `).join("");
-
-  if (lessonId && list.some(l => String(l.id) === String(lessonId))) {
-    document.getElementById("document-lesson").value = String(lessonId);
-  }
-
-  reveal("document-form-section");
-  document.getElementById("document-form-section")
-    .scrollIntoView({ behavior: "smooth" });
-}
-
-function closeDocumentForm() {
-  document.getElementById("document-form").reset();
-  hide("document-form-section");
-}
-
-async function uploadPDF(event) {
-  event.preventDefault();
-
-  const button = document.getElementById("upload-pdf");
-  const file = document.getElementById("document-file").files[0];
-  const lessonId = document.getElementById("document-lesson").value;
-  const type = document.getElementById("document-type").value.trim();
-
-  if (!file || !lessonId) {
-    showMessage("Choisis une séance et un fichier PDF.", "error");
-    return;
-  }
-
-  if (file.type !== "application/pdf" &&
-      !file.name.toLowerCase().endsWith(".pdf")) {
-    showMessage("Seuls les PDF sont acceptés.", "error");
-    return;
-  }
-
-  if (file.size > 20 * 1024 * 1024) {
-    showMessage("Le PDF dépasse 20 Mo.", "error");
-    return;
-  }
-
-  const lesson = lessons.find(l => String(l.id) === String(lessonId));
-  if (!lesson || String(lesson.student_id) !== String(selectedStudent?.id)) {
-    showMessage("Cette séance n'appartient pas à cet élève.", "error");
-    return;
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${currentUser.id}/${lessonId}/${Date.now()}_${safeName}`;
-
-  button.disabled = true;
-  let uploaded = false;
-
-  try {
-    const { error: uploadError } = await db.storage
-      .from(DOCUMENTS_BUCKET)
-      .upload(path, file, { contentType: "application/pdf", upsert: false });
-
-    if (uploadError) throw uploadError;
-    uploaded = true;
-
-    const { error: insertError } = await db.from(DOCUMENTS_TABLE).insert({
-      lesson_id: lesson.id,
-      file_name: file.name,
-      file_path: path,
-      document_type: type || "PDF",
-      lesson_title: lesson.title
-    });
-
-    if (insertError) throw insertError;
-
-    closeDocumentForm();
-    await loadDocuments();
-    showMessage("PDF ajouté à la séance.", "success");
-  } catch (error) {
-    if (uploaded) {
-      await db.storage.from(DOCUMENTS_BUCKET).remove([path]);
-    }
-    showError(error);
-  } finally {
-    button.disabled = false;
-    button.textContent = "Envoyer le PDF";
+  if (form) {
+    form.classList.remove("hidden");
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
-async function renderStudentDocuments(lessonIds) {
-  const container = document.getElementById("profile-documents");
+function editStudent(studentId) {
+  openStudentForm(studentId);
+}
+
+function closeStudentForm() {
+  $("student-form")?.classList.add("hidden");
+}
+
+async function saveStudent(event) {
+  event?.preventDefault();
+  hideMessage();
+
+  const id = getValue("student-id");
+  const name = getValue("student-name");
+  const studentClass = getValue("student-class");
+
+  if (!name) {
+    showMessage("Le nom de l'élève est obligatoire.", "error");
+    return;
+  }
+
+  const values = {
+    name,
+    class: studentClass || null
+  };
+
+  let query;
+
+  if (id) {
+    query = db
+      .from(STUDENTS_TABLE)
+      .update(values)
+      .eq("id", id);
+  } else {
+    query = db
+      .from(STUDENTS_TABLE)
+      .insert(values);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    showMessage("Impossible d'enregistrer l'élève : " + error.message, "error");
+    return;
+  }
+
+  closeStudentForm();
+  showMessage("Élève enregistré.", "success");
+  await loadStudents();
+}
+
+async function deleteStudent(studentId) {
+  const student = students.find(
+    item => String(item.id) === String(studentId)
+  );
+
+  if (!student) return;
+
+  const confirmed = confirm(
+    `Supprimer l'élève ${student.name} ? Cette action peut aussi nécessiter de supprimer ses séances et documents.`
+  );
+
+  if (!confirmed) return;
+
+  const { error } = await db
+    .from(STUDENTS_TABLE)
+    .delete()
+    .eq("id", studentId);
+
+  if (error) {
+    showMessage(
+      "Impossible de supprimer l'élève. Vérifie si des séances lui sont encore liées : " +
+      error.message,
+      "error"
+    );
+    return;
+  }
+
+  if (currentStudent &&
+      String(currentStudent.id) === String(studentId)) {
+    currentStudent = null;
+    currentLesson = null;
+  }
+
+  showMessage("Élève supprimé.", "success");
+  await loadStudents();
+}
+
+/* ------------------------------
+   PROFIL DE L'ÉLÈVE
+------------------------------ */
+
+async function openStudentProfile(studentId) {
+  const student = students.find(
+    item => String(item.id) === String(studentId)
+  );
+
+  if (!student) {
+    showMessage("Élève introuvable.", "error");
+    return;
+  }
+
+  currentStudent = student;
+  currentLesson = null;
+
+  setText("profile-student-name", student.name);
+  setText("profile-student-class", student.class || "Non renseignée");
+
+  showSection("student-profile-section");
+
+  await loadLessons();
+}
+
+function backToStudents() {
+  currentStudent = null;
+  currentLesson = null;
+  showSection("app-section");
+}
+
+/* ------------------------------
+   SÉANCES : CHARGEMENT
+------------------------------ */
+
+async function loadLessons() {
+  if (!requireStudent()) return;
+
+  const { data, error } = await db
+    .from(LESSONS_TABLE)
+    .select("*")
+    .eq("student_id", currentStudent.id)
+    .order("lesson_date", { ascending: false });
+
+  if (error) {
+    showMessage(
+      "Impossible de charger les séances : " + error.message +
+      ". Vérifie notamment que la colonne student_id existe dans Lessons.",
+      "error"
+    );
+    return;
+  }
+
+  lessons = data ?? [];
+  renderLessons();
+}
+
+function renderLessons() {
+  const container = $("lessons-list");
+
   if (!container) return;
 
-  const ids = new Set(lessonIds.map(String));
-  const list = documents.filter(d => ids.has(String(d.lesson_id)));
-
-  if (!list.length) {
-    container.innerHTML = "<p>Aucun PDF associé aux séances de cet élève.</p>";
+  if (lessons.length === 0) {
+    container.innerHTML = "<p>Aucune séance enregistrée pour cet élève.</p>";
     return;
   }
 
-  container.innerHTML = "<p>Chargement des PDF...</p>";
-
-  const rows = await Promise.all(list.map(async doc => {
-    let url = "";
-
-    if (doc.file_path) {
-      const { data, error } = await db.storage
-        .from(DOCUMENTS_BUCKET)
-        .createSignedUrl(doc.file_path, 3600);
-      if (!error) url = data?.signedUrl || "";
-    }
-
-    return { doc, url };
-  }));
-
-  container.innerHTML = rows.map(({ doc, url }) => `
-    <article class="card mt-3">
-      <h3>${esc(doc.file_name || "Document PDF")}</h3>
-      <p><strong>Séance :</strong> ${esc(doc.lesson_title || "Séance")}</p>
-      <p><strong>Type :</strong> ${esc(doc.document_type || "PDF")}</p>
-      ${url
-        ? `<p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Ouvrir le PDF</a></p>`
-        : `<p class="error-text">Lien indisponible : vérifie les droits du bucket.</p>`}
-      <button class="danger" type="button"
-        data-delete-pdf="${esc(doc.id)}">Supprimer le PDF</button>
+  container.innerHTML = lessons.map(lesson => `
+    <article class="card lesson-card">
+      <h3>${escapeHTML(lesson.title)}</h3>
+      <p><strong>Matière :</strong> ${escapeHTML(lesson.subject || "Non renseignée")}</p>
+      <p><strong>Date :</strong> ${escapeHTML(formatDate(lesson.lesson_date))}</p>
+      <p><strong>Durée :</strong> ${escapeHTML(lesson.duration_minutes || "Non renseignée")} min</p>
+      <p>${escapeHTML(lesson.content || "")}</p>
+      <div class="form-actions">
+        <button type="button"
+          onclick="openLessonDocuments('${escapeHTML(lesson.id)}')">
+          Documents PDF
+        </button>
+        <button type="button" class="secondary"
+          onclick="editLesson('${escapeHTML(lesson.id)}')">
+          Modifier
+        </button>
+        <button type="button" class="danger"
+          onclick="deleteLesson('${escapeHTML(lesson.id)}')">
+          Supprimer
+        </button>
+      </div>
     </article>
   `).join("");
-
-  container.querySelectorAll("[data-delete-pdf]").forEach(button => {
-    button.addEventListener("click", () => deletePDF(button.dataset.deletePdf));
-  });
 }
 
-async function deletePDF(id) {
-  const doc = documents.find(d => String(d.id) === String(id));
-  if (!doc || !confirm(`Supprimer le PDF « ${doc.file_name} » ?`)) return;
+/* ------------------------------
+   SÉANCES : AJOUT / MODIFICATION
+------------------------------ */
 
-  try {
-    if (doc.file_path) {
-      const { error } = await db.storage.from(DOCUMENTS_BUCKET).remove([doc.file_path]);
-      if (error) throw error;
-    }
+function openLessonForm(lessonId = null) {
+  if (!requireStudent()) return;
 
-    const { error } = await db.from(DOCUMENTS_TABLE).delete().eq("id", id);
-    if (error) throw error;
+  const lesson = lessonId
+    ? lessons.find(item => String(item.id) === String(lessonId))
+    : null;
 
-    await loadDocuments();
-    showMessage("PDF supprimé.", "success");
-  } catch (error) {
-    showError(error);
+  if (lessonId && !lesson) {
+    showMessage("Séance introuvable.", "error");
+    return;
+  }
+
+  setValue("lesson-id", lesson?.id ?? "");
+  setValue("lesson-title", lesson?.title ?? "");
+  setValue("lesson-subject", lesson?.subject ?? "");
+  setValue("lesson-date", lesson?.lesson_date ?? "");
+  setValue("lesson-duration", lesson?.duration_minutes ?? "");
+  setValue("lesson-content", lesson?.content ?? "");
+  setValue("lesson-conclusion", lesson?.conclusion ?? "");
+
+  const form = $("lesson-form");
+
+  if (form) {
+    form.classList.remove("hidden");
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
-/* ================= DÉMARRAGE ================= */
+function editLesson(lessonId) {
+  openLessonForm(lessonId);
+}
 
-async function startApp() {
-  try {
-    const { data, error } = await db.auth.getSession();
-    if (error) throw error;
+function closeLessonForm() {
+  $("lesson-form")?.classList.add("hidden");
+}
 
-    currentUser = data.session?.user || null;
+async function saveLesson(event) {
+  event?.preventDefault();
+  hideMessage();
+
+  if (!requireStudent()) return;
+
+  const id = getValue("lesson-id");
+  const title = getValue("lesson-title");
+
+  if (!title) {
+    showMessage("Le titre de la séance est obligatoire.", "error");
+    return;
+  }
+
+  const values = {
+    student_id: currentStudent.id,
+    title,
+    subject: getValue("lesson-subject") || null,
+    lesson_date: getValue("lesson-date") || null,
+    duration_minutes: getValue("lesson-duration") || null,
+    content: getValue("lesson-content") || null,
+    conclusion: getValue("lesson-conclusion") || null,
+    class: currentStudent.class || null
+  };
+
+  let query;
+
+  if (id) {
+    query = db
+      .from(LESSONS_TABLE)
+      .update(values)
+      .eq("id", id)
+      .eq("student_id", currentStudent.id);
+  } else {
+    query = db
+      .from(LESSONS_TABLE)
+      .insert(values);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    showMessage(
+      "Impossible d'enregistrer la séance : " + error.message,
+      "error"
+    );
+    return;
+  }
+
+  closeLessonForm();
+  currentLesson = null;
+  showMessage("Séance enregistrée.", "success");
+  await loadLessons();
+}
+
+async function deleteLesson(lessonId) {
+  if (!requireStudent()) return;
+
+  const confirmed = confirm(
+    "Supprimer cette séance et ses documents associés ?"
+  );
+
+  if (!confirmed) return;
+
+  // Supprime d'abord les références aux documents.
+  const { data: linkedDocs, error: docsError } = await db
+    .from(DOCUMENTS_TABLE)
+    .select("*")
+    .eq("lesson_id", lessonId);
+
+  if (docsError) {
+    showMessage(
+      "Impossible de vérifier les documents : " + docsError.message,
+      "error"
+    );
+    return;
+  }
+
+  // Supprime les fichiers du stockage avant leurs références.
+  const paths = (linkedDocs ?? [])
+    .map(doc => doc.file_path)
+    .filter(Boolean);
+
+  if (paths.length) {
+    const { error: storageError } = await db.storage
+      .from(DOCUMENTS_BUCKET)
+      .remove(paths);
+
+    if (storageError) {
+      showMessage(
+        "Suppression des fichiers impossible : " + storageError.message,
+        "error"
+      );
+      return;
+    }
+  }
+
+  const { error: deleteDocsError } = await db
+    .from(DOCUMENTS_TABLE)
+    .delete()
+    .eq("lesson_id", lessonId);
+
+  if (deleteDocsError) {
+    showMessage(deleteDocsError.message, "error");
+    return;
+  }
+
+  const { error } = await db
+    .from(LESSONS_TABLE)
+    .delete()
+    .eq("id", lessonId)
+    .eq("student_id", currentStudent.id);
+
+  if (error) {
+    showMessage("Impossible de supprimer la séance : " + error.message, "error");
+    return;
+  }
+
+  currentLesson = null;
+  showMessage("Séance supprimée.", "success");
+  await loadLessons();
+}
+
+/* ------------------------------
+   DOCUMENTS PDF : AFFICHAGE
+------------------------------ */
+
+async function openLessonDocuments(lessonId) {
+  if (!requireStudent()) return;
+
+  const lesson = lessons.find(
+    item => String(item.id) === String(lessonId)
+  );
+
+  if (!lesson) {
+    showMessage("Séance introuvable.", "error");
+    return;
+  }
+
+  currentLesson = lesson;
+
+  setText("documents-lesson-title", lesson.title);
+
+  const { data, error } = await db
+    .from(DOCUMENTS_TABLE)
+    .select("*")
+    .eq("lesson_id", lesson.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    showMessage(
+      "Impossible de charger les documents : " + error.message,
+      "error"
+    );
+    return;
+  }
+
+  documents = data ?? [];
+  renderDocuments();
+
+  showSection("lesson-documents-section");
+}
+
+function renderDocuments() {
+  const container = $("documents-list");
+
+  if (!container) return;
+
+  if (documents.length === 0) {
+    container.innerHTML = "<p>Aucun document pour cette séance.</p>";
+    return;
+  }
+
+  container.innerHTML = documents.map(doc => `
+    <article class="card document-card">
+      <p><strong>${escapeHTML(doc.file_name || "Document PDF")}</strong></p>
+      <p>Type : ${escapeHTML(doc.document_type || "Non précisé")}</p>
+      <button type="button"
+        onclick="openPdf('${escapeHTML(doc.id)}')">
+        Ouvrir le PDF
+      </button>
+      <button type="button" class="danger"
+        onclick="deleteDocument('${escapeHTML(doc.id)}')">
+        Supprimer
+      </button>
+    </article>
+  `).join("");
+}
+
+async function openPdf(documentId) {
+  const doc = documents.find(
+    item => String(item.id) === String(documentId)
+  );
+
+  if (!doc || !doc.file_path) {
+    showMessage("Chemin du PDF introuvable.", "error");
+    return;
+  }
+
+  const { data, error } = await db.storage
+    .from(DOCUMENTS_BUCKET)
+    .createSignedUrl(doc.file_path, 60);
+
+  if (error) {
+    showMessage("Impossible d'ouvrir le PDF : " + error.message, "error");
+    return;
+  }
+
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
+/* ------------------------------
+   DOCUMENTS PDF : AJOUT
+------------------------------ */
+
+async function uploadDocument(event) {
+  event?.preventDefault();
+  hideMessage();
+
+  if (!currentStudent || !currentLesson) {
+    showMessage("Sélectionne d'abord une séance.", "error");
+    return;
+  }
+
+  const input = $("document-file");
+  const file = input?.files?.[0];
+
+  if (!file) {
+    showMessage("Choisis un fichier PDF.", "error");
+    return;
+  }
+
+  if (
+    file.type !== "application/pdf" &&
+    !file.name.toLowerCase().endsWith(".pdf")
+  ) {
+    showMessage("Seuls les fichiers PDF sont acceptés.", "error");
+    return;
+  }
+
+  // Nom de stockage unique, sans caractères problématiques.
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const filePath =
+    `${currentStudent.id}/${currentLesson.id}/${Date.now()}_${safeName}`;
+
+  const { error: uploadError } = await db.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(filePath, file, {
+      contentType: "application/pdf",
+      upsert: false
+    });
+
+  if (uploadError) {
+    showMessage("Envoi du PDF impossible : " + uploadError.message, "error");
+    return;
+  }
+
+  const documentType = getValue("document-type") || null;
+
+  const { error: insertError } = await db
+    .from(DOCUMENTS_TABLE)
+    .insert({
+      lesson_id: currentLesson.id,
+      file_name: file.name,
+      file_path: filePath,
+      document_type: documentType,
+      lesson_title: currentLesson.title
+    });
+
+  if (insertError) {
+    // Nettoie le fichier si l'enregistrement de sa référence échoue.
+    await db.storage.from(DOCUMENTS_BUCKET).remove([filePath]);
+
+    showMessage(
+      "Le fichier a été envoyé, mais sa référence n'a pas pu être enregistrée : " +
+      insertError.message,
+      "error"
+    );
+    return;
+  }
+
+  if (input) input.value = "";
+  setValue("document-type", "");
+
+  showMessage("PDF ajouté avec succès.", "success");
+  await openLessonDocuments(currentLesson.id);
+}
+
+/* ------------------------------
+   DOCUMENTS PDF : SUPPRESSION
+------------------------------ */
+
+async function deleteDocument(documentId) {
+  const doc = documents.find(
+    item => String(item.id) === String(documentId)
+  );
+
+  if (!doc) return;
+
+  if (!confirm(`Supprimer le document "${doc.file_name}" ?`)) {
+    return;
+  }
+
+  const { error: storageError } = await db.storage
+    .from(DOCUMENTS_BUCKET)
+    .remove([doc.file_path]);
+
+  if (storageError) {
+    showMessage(
+      "Impossible de supprimer le fichier : " + storageError.message,
+      "error"
+    );
+    return;
+  }
+
+  const { error } = await db
+    .from(DOCUMENTS_TABLE)
+    .delete()
+    .eq("id", documentId)
+    .eq("lesson_id", currentLesson.id);
+
+  if (error) {
+    showMessage(
+      "Le fichier a été supprimé du stockage, mais sa référence reste en base : " +
+      error.message,
+      "error"
+    );
+    return;
+  }
+
+  showMessage("Document supprimé.", "success");
+  await openLessonDocuments(currentLesson.id);
+}
+
+/* ------------------------------
+   RETOUR AUX SÉANCES
+------------------------------ */
+
+function backToLessons() {
+  currentLesson = null;
+  showSection("student-profile-section");
+}
+
+/* ------------------------------
+   RECHERCHE DES ÉLÈVES
+------------------------------ */
+
+function searchStudents() {
+  const search = getValue("student-search").toLowerCase();
+
+  const filtered = students.filter(student =>
+    String(student.name ?? "").toLowerCase().includes(search) ||
+    String(student.class ?? "").toLowerCase().includes(search)
+  );
+
+  const container = $("students-list") || $("students-grid");
+
+  if (!container) return;
+
+  if (filtered.length === 0) {
+    container.innerHTML = "<p>Aucun élève correspondant à la recherche.</p>";
+    return;
+  }
+
+  container.innerHTML = filtered.map(student => `
+    <article class="student-card">
+      <h3>${escapeHTML(student.name)}</h3>
+      <p>Classe : ${escapeHTML(student.class || "Non renseignée")}</p>
+      <div class="form-actions">
+        <button type="button"
+          onclick="openStudentProfile('${escapeHTML(student.id)}')">
+          Voir les séances
+        </button>
+        <button type="button" class="secondary"
+          onclick="editStudent('${escapeHTML(student.id)}')">
+          Modifier
+        </button>
+        <button type="button" class="danger"
+          onclick="deleteStudent('${escapeHTML(student.id)}')">
+          Supprimer
+        </button>
+      </div>
+    </article>
+  `).join("");
+}
+
+/* ------------------------------
+   ÉVÉNEMENTS ET INITIALISATION
+------------------------------ */
+
+function bindEvent(id, eventName, handler) {
+  const element = $(id);
+
+  if (element) {
+    element.addEventListener(eventName, handler);
+  }
+}
+
+function initApp() {
+  bindEvent("login-form", "submit", login);
+  bindEvent("signup-button", "click", signup);
+  bindEvent("reset-password-button", "click", resetPassword);
+  bindEvent("logout-button", "click", logout);
+
+  bindEvent("student-form", "submit", saveStudent);
+  bindEvent("add-student-button", "click", () => openStudentForm());
+  bindEvent("cancel-student-button", "click", closeStudentForm);
+  bindEvent("student-search", "input", searchStudents);
+
+  bindEvent("lesson-form", "submit", saveLesson);
+  bindEvent("add-lesson-button", "click", () => openLessonForm());
+  bindEvent("cancel-lesson-button", "click", closeLessonForm);
+
+  bindEvent("document-form", "submit", uploadDocument);
+  bindEvent("back-to-students-button", "click", backToStudents);
+  bindEvent("back-to-lessons-button", "click", backToLessons);
+
+  db.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user ?? null;
+    updateAuthView();
 
     if (currentUser) {
-      await renderDashboard();
+      // Évite de bloquer le callback d'authentification.
+      setTimeout(() => loadStudents(), 0);
     } else {
-      renderLogin();
+      students = [];
+      lessons = [];
+      documents = [];
+      currentStudent = null;
+      currentLesson = null;
     }
-  } catch (error) {
-    app.innerHTML = `
-      <main class="login-page">
-        <section class="login-box">
-          <h1>NSK Éducation</h1>
-          <p class="error-text">${esc(error.message || "Chargement impossible.")}</p>
-          <button type="button" onclick="location.reload()">Réessayer</button>
-        </section>
-      </main>`;
-  }
+  });
+
+  checkSession();
 }
 
-startApp();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
+
+/* Fonctions utilisées par les boutons HTML. */
+window.login = login;
+window.signup = signup;
+window.logout = logout;
+window.resetPassword = resetPassword;
+window.loadStudents = loadStudents;
+window.openStudentForm = openStudentForm;
+window.editStudent = editStudent;
+window.saveStudent = saveStudent;
+window.deleteStudent = deleteStudent;
+window.openStudentProfile = openStudentProfile;
+window.backToStudents = backToStudents;
+window.openLessonForm = openLessonForm;
+window.editLesson = editLesson;
+window.saveLesson = saveLesson;
+window.deleteLesson = deleteLesson;
+window.openLessonDocuments = openLessonDocuments;
+window.uploadDocument = uploadDocument;
+window.openPdf = openPdf;
+window.deleteDocument = deleteDocument;
+window.backToLessons = backToLessons;
+window.searchStudents = searchStudents;
