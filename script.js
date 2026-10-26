@@ -3375,5 +3375,3 @@ async function startApp() {
 
 
 startApp();
-
-
