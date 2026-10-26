@@ -456,3 +456,420 @@ footer {
     padding: 18px;
   }
 }
+
+/* ==========================================
+   NSK ÉDUCATION — PREMIUM VIOLET
+   Modernisation visuelle
+   ========================================== */
+
+:root {
+  --navy: #202044;
+  --blue: #7161e8;
+  --background: #f6f5fc;
+  --white: #ffffff;
+  --text: #292943;
+  --muted: #77768f;
+  --border: #e8e5f3;
+  --green: #159b79;
+  --red: #dc4c64;
+  --radius: 20px;
+  --shadow: 0 8px 30px rgba(43, 35, 95, 0.07);
+}
+
+body {
+  background:
+    radial-gradient(ellipse at top left, #eeebff 0, transparent 38%),
+    var(--background);
+  color: var(--text);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3 {
+  color: var(--navy);
+  letter-spacing: -0.035em;
+}
+
+::selection {
+  background: #ddd7ff;
+  color: #27204f;
+}
+
+/* Boutons */
+
+button {
+  min-height: 44px;
+  padding: 11px 18px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8173f2, #6655dc);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(113, 97, 232, 0.16);
+  transition: transform .2s ease, box-shadow .2s ease,
+              background .2s ease;
+}
+
+button:hover {
+  background: linear-gradient(135deg, #7161e8, #5746cb);
+  box-shadow: 0 7px 18px rgba(113, 97, 232, 0.25);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(113, 97, 232, .3);
+  outline-offset: 3px;
+}
+
+button.secondary {
+  background: #fff;
+  color: #5f50ca;
+  border-color: #e2ddfa;
+  box-shadow: none;
+}
+
+button.secondary:hover {
+  background: #f3f0ff;
+}
+
+button.danger {
+  background: #fff0f2;
+  border-color: #ffd9df;
+  color: #c73550;
+  box-shadow: none;
+}
+
+button.danger:hover {
+  background: #ffe2e7;
+}
+
+button.link-button {
+  background: transparent;
+  color: #6655dc;
+  box-shadow: none;
+}
+
+/* Connexion */
+
+.login-page {
+  background:
+    radial-gradient(circle at 15% 15%, #dcd5ff, transparent 35%),
+    radial-gradient(circle at 90% 85%, #d9f4ef, transparent 30%),
+    linear-gradient(135deg, #f8f7ff, #eeedfa);
+}
+
+.login-box {
+  max-width: 460px;
+  padding: 42px;
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 26px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 24px 70px rgba(49, 39, 105, .13);
+  backdrop-filter: blur(12px);
+}
+
+.login-box h1 {
+  font-size: clamp(28px, 5vw, 36px);
+  letter-spacing: -0.05em;
+}
+
+.login-box > p {
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+/* Champs de formulaire */
+
+input, select, textarea {
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid #e2dfef;
+  border-radius: 12px;
+  background: #fdfcff;
+  color: var(--text);
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+
+input:hover, select:hover, textarea:hover {
+  border-color: #c9c0f5;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #8879ee;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(113, 97, 232, .11);
+  outline: none;
+}
+
+label {
+  margin-bottom: 8px;
+  color: #3c3a5b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Barre supérieure */
+
+.topbar {
+  position: relative;
+  gap: 16px;
+  padding: 17px clamp(16px, 5vw, 64px);
+  border: none;
+  border-bottom: 1px solid #e9e5fa;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 4px 22px rgba(41, 32, 91, .045);
+  backdrop-filter: blur(14px);
+}
+
+.topbar-brand {
+  color: #29234f;
+  font-size: 21px;
+  letter-spacing: -0.04em;
+}
+
+.topbar-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #9183ff, #6251d8);
+  box-shadow: 0 6px 16px rgba(113, 97, 232, .25);
+}
+
+/* Contenu et titres */
+
+.dashboard-content {
+  max-width: 1240px;
+  padding: 42px 26px;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-title {
+  font-size: clamp(28px, 4vw, 39px);
+  letter-spacing: -0.055em;
+}
+
+.page-header p {
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+/* Statistiques */
+
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  padding: 25px;
+  border: 1px solid rgba(231, 227, 247, .9);
+  border-radius: 21px;
+  background: linear-gradient(145deg, #fff, #fbfaff);
+  box-shadow: var(--shadow);
+  transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 35px rgba(43, 35, 95, .10);
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.stat-value {
+  color: #7161e8;
+  font-size: clamp(30px, 4vw, 38px);
+  letter-spacing: -0.05em;
+}
+
+/* Cartes et élèves */
+
+.card {
+  margin-bottom: 24px;
+  padding: 28px;
+  border: 1px solid rgba(231, 227, 247, .95);
+  border-radius: 22px;
+  background: rgba(255,255,255,.96);
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  font-size: 23px;
+  letter-spacing: -0.04em;
+}
+
+.student-card {
+  padding: 24px;
+  border: 1px solid #e9e5f5;
+  border-radius: 20px;
+  background: linear-gradient(155deg, #fff, #fcfbff);
+  box-shadow: 0 4px 16px rgba(43, 35, 95, .035);
+  transition: transform .22s ease, border-color .22s ease,
+              box-shadow .22s ease;
+}
+
+.student-card:hover {
+  transform: translateY(-4px);
+  border-color: #cfc6ff;
+  box-shadow: 0 14px 32px rgba(43, 35, 95, .10);
+}
+
+.student-card h3 {
+  font-size: 20px;
+}
+
+.student-card p {
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.student-menu {
+  gap: 9px;
+}
+
+.student-menu button {
+  border-radius: 11px;
+}
+
+/* Messages */
+
+.alert {
+  padding: 15px 17px;
+  border: 1px solid #dcd5ff;
+  border-radius: 14px;
+  background: #f4f1ff;
+  color: #5545bd;
+}
+
+.alert.success {
+  border-color: #c5eee1;
+  background: #ecfaf5;
+  color: #12785e;
+}
+
+.alert.error,
+.error-text {
+  border-color: #ffd4dc;
+  background: #fff1f3;
+  color: #b52f49;
+}
+
+/* États vides et séparateurs */
+
+.empty-state {
+  padding: 42px 22px;
+  border: 1px dashed #d3cdef;
+  border-radius: 18px;
+  background: rgba(255,255,255,.65);
+}
+
+.empty-state p {
+  color: var(--muted);
+}
+
+.divider {
+  background: #ebe8f5;
+}
+
+/* Liens et sélection */
+
+a {
+  color: #6655dc;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: #4c3bc0;
+}
+
+::placeholder {
+  color: #aaa7bd;
+  opacity: 1;
+}
+
+/* Barre de défilement */
+
+* {
+  scrollbar-color: #c9c1f2 #f3f1fa;
+  scrollbar-width: thin;
+}
+
+/* Mobile */
+
+@media (max-width: 850px) {
+  .dashboard-content {
+    padding: 30px 20px;
+  }
+
+  .students-grid {
+    gap: 14px;
+  }
+
+  .stats-grid {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-box {
+    padding: 30px 21px;
+    border-radius: 22px;
+  }
+
+  .topbar {
+    padding: 14px 16px;
+  }
+
+  .topbar-brand {
+    font-size: 18px;
+  }
+
+  .dashboard-content {
+    padding: 24px 14px;
+  }
+
+  .page-header {
+    gap: 12px;
+    margin-bottom: 23px;
+  }
+
+  .card {
+    padding: 20px 16px;
+    border-radius: 18px;
+  }
+
+  .student-card {
+    padding: 18px;
+  }
+
+  .student-menu button {
+    flex-basis: 100%;
+  }
+
+  .form-actions button {
+    flex: 1 1 100%;
+  }
+
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
