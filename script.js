@@ -1,12 +1,8 @@
-
-/* =========================
-   CONFIGURATION SUPABASE
-========================= */
-
 const SUPABASE_URL = "https://htsxwtgcgczmdgexfxny.supabase.co";
+
 const SUPABASE_KEY = "sb_publishable_hxcdPuJMlrh9yd4W5n-MhQ_mYeak9am";
 
-const supabaseClient = window.supabase.createClient(
+const supabaseClient = supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
 );
@@ -15,80 +11,60 @@ let currentStudent = null;
 
 
 /* =========================
-   OUTILS GÉNÉRAUX
+   OUTILS
 ========================= */
 
 function app() {
     return document.getElementById("app");
 }
 
-
-function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, function (char) {
-        const entities = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;"
-        };
-
-        return entities[char];
-    });
+function escapeHTML(value = "") {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }
 
+function formatDate(date) {
+    if (!date) return "";
 
-function formatDate(value) {
-    if (!value) return "";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return escapeHTML(value);
-    }
-
-    return date.toLocaleDateString("fr-FR");
+    return new Date(date + "T00:00:00").toLocaleDateString("fr-FR");
 }
 
 
 function formatDuration(minutes) {
-    const total = Number(minutes) || 0;
-    const hours = Math.floor(total / 60);
-    const remainingMinutes = total % 60;
+    if (minutes == null || minutes === "") return "";
 
-    if (hours && remainingMinutes) {
-        return `${hours} h ${remainingMinutes} min`;
-    }
+    const hours = Math.floor(Number(minutes) / 60);
+    const remainingMinutes = Number(minutes) % 60;
 
-    if (hours) {
-        return `${hours} h`;
-    }
+    if (hours === 0) return `${remainingMinutes} min`;
+    if (remainingMinutes === 0) return `${hours}h`;
 
-    return `${remainingMinutes} min`;
+    return `hoursh{remainingMinutes}`;
 }
 
+function durationOptions(selected = "") {
+    const durations = [];
 
-function durationOptions(selected = 60) {
-    const durations = [
-        { label: "30 minutes", minutes: 30 },
-        { label: "45 minutes", minutes: 45 },
-        { label: "1 heure", minutes: 60 },
-        { label: "1 h 15", minutes: 75 },
-        { label: "1 h 30", minutes: 90 },
-        { label: "1 h 45", minutes: 105 },
-        { label: "2 heures", minutes: 120 },
-        { label: "2 h 30", minutes: 150 },
-        { label: "3 heures", minutes: 180 }
-    ];
+    for (let minutes = 30; minutes <= 600; minutes += 30) {
+        durations.push([minutes, formatDuration(minutes)]);
+    }
 
-    return durations.map(item => `
-        <option
-            value="${item.minutes}"
-            ${Number(selected) === item.minutes ? "selected" : ""}
-        >
-            ${item.label}
-        </option>
-    `).join("");
+    return `
+        <option value="">Choisir une durée</option>
+        ${durations.map(([minutes, label]) => `
+            <option value="${minutes}" String(selected)===String(minutes)?"selected":"">{label}</option>
+        `).join("")}
+    `;
+}
+
+function normalizeGrade(grade, max) {
+    return Number(
+        ((Number(grade) / Number(max)) * 20).toFixed(2)
+    );
 }
 
 
@@ -98,13 +74,16 @@ function durationOptions(selected = 60) {
 
 function showHome() {
     app().innerHTML = `
-        <div class="home-page">
+        <div class="home">
             <h1>NSK Éducation</h1>
-            <p>Accompagnement scolaire et suivi personnalisé</p>
 
-            <button onclick="showLogin()">
-                Se connecter
-            </button>
+            <p>Suivi des élèves</p>
+
+            <div class="home-buttons">
+                <button onclick="showLogin()">
+                    Connexion enseignant
+                </button>
+            </div>
         </div>
     `;
 }
@@ -116,268 +95,375 @@ function showHome() {
 
 function showLogin() {
     app().innerHTML = `
-        <div class="login-page">
-            <h1>Connexion</h1>
+        <div class="login-box">
 
-            <form onsubmit="login(event)">
-                <label for="login-email">Adresse e-mail</label>
-                <input
-                    id="login-email"
-                    type="email"
-                    autocomplete="email"
-                    required
-                >
+            <h1>NSK Éducation</h1>
 
-                <label for="login-password">Mot de passe</label>
-                <input
-                    id="login-password"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                >
+            <h2>Connexion</h2>
 
-                <button type="submit">
-                    Se connecter
-                </button>
-            </form>
+            <input
+                id="login-email"
+                type="email"
+                placeholder="Adresse e-mail"
+            >
 
-            <button onclick="forgotPassword()">
+            <input
+                id="login-password"
+                type="password"
+                placeholder="Mot de passe"
+            >
+
+            <p id="login-error"></p>
+
+            <button onclick="login()">
+                Se connecter
+            </button>
+
+            <button
+                class="secondary"
+                onclick="showHome()"
+            >
+                Retour
+            </button>
+
+            <button
+                class="link-button"
+                onclick="forgotPassword()"
+            >
                 Mot de passe oublié ?
             </button>
 
-            <button onclick="showHome()">
-                Retour à l'accueil
-            </button>
         </div>
     `;
 }
 
 
-async function login(event) {
-    event.preventDefault();
+async function login() {
 
-    const email = document
-        .getElementById("login-email")
-        .value.trim();
+    const email =
+        document.getElementById("login-email").value.trim();
 
-    const password = document
-        .getElementById("login-password")
-        .value;
+    const password =
+        document.getElementById("login-password").value;
 
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-    });
+    const error =
+        document.getElementById("login-error");
 
-    if (error) {
-        alert("Connexion impossible : " + error.message);
+    if (!email || !password) {
+
+        error.textContent =
+            "Veuillez remplir tous les champs.";
+
         return;
     }
 
-    const { data: profile, error: profileError } =
+    const { data, error: loginError } =
+        await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+    if (loginError) {
+
+        error.textContent =
+            "E-mail ou mot de passe incorrect.";
+
+        return;
+    }
+
+    const { data: profile } =
         await supabaseClient
             .from("profiles")
             .select("role")
             .eq("id", data.user.id)
             .single();
 
-    if (profileError || !profile || profile.role !== "teacher") {
+    if (!profile || profile.role !== "teacher") {
+
         await supabaseClient.auth.signOut();
 
-        alert("Ce compte n'a pas accès à l'espace enseignant.");
-        showHome();
+        error.textContent =
+            "Accès réservé à l'enseignant.";
+
         return;
     }
 
-    currentStudent = null;
-    await showDashboard();
+    showDashboard();
 }
 
 
 async function forgotPassword() {
+
     const email = prompt(
-        "Saisis l'adresse e-mail associée à ton compte :"
+        "Entrez votre adresse e-mail :"
     );
 
-    if (!email || !email.trim()) {
-        return;
-    }
+    if (!email) return;
 
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-            redirectTo: window.location.origin
-        }
-    );
+    const { error } =
+        await supabaseClient.auth.resetPasswordForEmail(
+            email,
+            {
+                redirectTo: window.location.origin
+            }
+        );
 
     if (error) {
-        alert("Impossible d'envoyer le lien : " + error.message);
+
+        alert(error.message);
+
         return;
     }
 
-    alert("Si cette adresse est associée à un compte, un e-mail de réinitialisation a été envoyé.");
+    alert(
+        "Un e-mail de réinitialisation a été envoyé."
+    );
 }
-
-
 /* =========================
    TABLEAU DE BORD
 ========================= */
 
 async function showDashboard() {
-    currentStudent = null;
 
     const { data: students, error } =
         await supabaseClient
             .from("Students")
             .select("*")
-            .order("name", { ascending: true });
+            .order("name");
 
     if (error) {
+
         app().innerHTML = `
             <div class="dashboard">
-                <h1>NSK Éducation</h1>
-                <p>Impossible de charger les élèves.</p>
-                <p>${escapeHTML(error.message)}</p>
-                <button onclick="logout()">Déconnexion</button>
+
+                <h2>Erreur</h2>
+
+                <p>
+                    ${escapeHTML(error.message)}
+                </p>
+
             </div>
         `;
+
         return;
     }
 
     app().innerHTML = `
         <div class="dashboard">
+
             <div class="topbar">
+
                 <div>
+
                     <h1>NSK Éducation</h1>
-                    <p>Gestion des élèves</p>
+
+                    <p>
+                        Tableau de bord enseignant
+                    </p>
+
                 </div>
 
-                <button onclick="logout()">
-                    Déconnexion
-                </button>
+                <div class="topbar-buttons">
+
+                    <button onclick="showAddStudent()">
+                        + Ajouter un élève
+                    </button>
+
+                    <button onclick="logout()">
+                        Déconnexion
+                    </button>
+
+                </div>
+
             </div>
+
 
             <div class="section-title">
-                <h2 class="page-title">Mes élèves</h2>
-                <button onclick="showAddStudent()">
-                    + Ajouter un élève
-                </button>
+
+                <h2 class="page-title">
+                    Mes élèves
+                </h2>
+
             </div>
 
+
             <div class="students-grid">
+
                 ${
                     students && students.length
+
                         ? students.map(student => `
                             <div class="student-card">
+
                                 <div
-                                    role="button"
-                                    tabindex="0"
-                                    onclick="openStudent('${String(student.id)}')"
-                                    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openStudent('${String(student.id)}')}"
+                                    onclick="openStudent('${student.id}')"
                                 >
-                                    <h3>${escapeHTML(student.name)}</h3>
-                                    <p>${escapeHTML(student.class || "")}</p>
+
+                                    <h3>
+                                        ${escapeHTML(student.name)}
+                                    </h3>
+
+                                    <p>
+                                        ${escapeHTML(student.class || "")}
+                                    </p>
+
                                 </div>
 
-                                <div class="student-actions">
+
+                                <div
+                                    style="
+                                        margin-top:15px;
+                                        display:flex;
+                                        gap:8px;
+                                    "
+                                >
+
                                     <button
-                                        onclick="event.stopPropagation();editStudent('${String(student.id)}')"
+                                        onclick="
+                                            event.stopPropagation();
+                                            editStudent('${student.id}')
+                                        "
+                                        style="padding:7px 10px;"
                                     >
                                         Modifier
                                     </button>
 
+
                                     <button
-                                        onclick="event.stopPropagation();deleteStudent('${String(student.id)}')"
+                                        onclick="
+                                            event.stopPropagation();
+                                            deleteStudent('${student.id}')
+                                        "
+                                        style="padding:7px 10px;"
                                     >
                                         Supprimer
                                     </button>
+
                                 </div>
+
                             </div>
                         `).join("")
-                        : `<p>Aucun élève enregistré pour le moment.</p>`
+
+                        : `
+                            <p>
+                                Aucun élève enregistré.
+                            </p>
+                        `
                 }
+
             </div>
+
         </div>
     `;
 }
 
 
 /* =========================
-   AJOUTER UN ÉLÈVE
+   ÉLÈVES
 ========================= */
 
 function showAddStudent() {
+
     app().innerHTML = `
         <div class="dashboard">
+
             <div class="topbar">
-                <h1>Ajouter un élève</h1>
-                <button onclick="showDashboard()">Retour</button>
+
+                <div>
+
+                    <h1>
+                        Ajouter un élève
+                    </h1>
+
+                </div>
+
             </div>
 
+
             <section>
-                <label for="student-name">Nom et prénom</label>
+
                 <input
                     id="student-name"
-                    type="text"
-                    required
-                    style="width:100%;padding:12px;margin:8px 0 15px;"
+                    placeholder="Nom et prénom"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:12px;
+                    "
                 >
 
-                <label for="student-class">Classe</label>
+
                 <input
                     id="student-class"
-                    type="text"
-                    style="width:100%;padding:12px;margin:8px 0 15px;"
+                    placeholder="Classe"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:12px;
+                    "
                 >
 
+
                 <button onclick="addStudent()">
-                    Enregistrer l'élève
+                    Ajouter
                 </button>
+
 
                 <button onclick="showDashboard()">
                     Annuler
                 </button>
+
             </section>
+
         </div>
     `;
 }
 
 
 async function addStudent() {
-    const name = document
-        .getElementById("student-name")
-        .value.trim();
 
-    const studentClass = document
-        .getElementById("student-class")
-        .value.trim();
+    const name =
+        document
+            .getElementById("student-name")
+            .value
+            .trim();
+
+    const studentClass =
+        document
+            .getElementById("student-class")
+            .value
+            .trim();
 
     if (!name) {
-        alert("Le nom de l'élève est obligatoire.");
+
+        alert(
+            "Veuillez renseigner le nom."
+        );
+
         return;
     }
 
-    const { error } = await supabaseClient
-        .from("Students")
-        .insert({
-            name,
-            class: studentClass
-        });
+    const { error } =
+        await supabaseClient
+            .from("Students")
+            .insert({
+                name,
+                class: studentClass
+            });
 
     if (error) {
-        alert("Impossible d'ajouter l'élève : " + error.message);
+
+        alert(error.message);
+
         return;
     }
 
-    await showDashboard();
+    showDashboard();
 }
 
 
-/* =========================
-   MODIFIER UN ÉLÈVE
-========================= */
-
 async function editStudent(id) {
+
     const { data: student, error } =
         await supabaseClient
             .from("Students")
@@ -385,1126 +471,2909 @@ async function editStudent(id) {
             .eq("id", id)
             .single();
 
-    if (error || !student) {
-        alert(error?.message || "Élève introuvable.");
+    if (error) {
+
+        alert(error.message);
+
         return;
     }
 
     app().innerHTML = `
         <div class="dashboard">
+
             <div class="topbar">
-                <h1>Modifier un élève</h1>
-                <button onclick="showDashboard()">Retour</button>
+
+                <h1>
+                    Modifier l'élève
+                </h1>
+
             </div>
 
+
             <section>
-                <label for="edit-student-name">Nom et prénom</label>
+
                 <input
                     id="edit-student-name"
                     value="${escapeHTML(student.name)}"
-                    required
-                    style="width:100%;padding:12px;margin:8px 0 15px;"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:12px;
+                    "
                 >
 
-                <label for="edit-student-class">Classe</label>
+
                 <input
                     id="edit-student-class"
                     value="${escapeHTML(student.class || "")}"
-                    style="width:100%;padding:12px;margin:8px 0 15px;"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:12px;
+                    "
                 >
 
-                <button onclick="saveStudent('${String(student.id)}')">
-                    Enregistrer les modifications
+
+                <button onclick="saveStudent('${id}')">
+                    Enregistrer
                 </button>
+
 
                 <button onclick="showDashboard()">
                     Annuler
                 </button>
+
             </section>
+
         </div>
     `;
 }
 
 
 async function saveStudent(id) {
-    const name = document
-        .getElementById("edit-student-name")
-        .value.trim();
 
-    const studentClass = document
-        .getElementById("edit-student-class")
-        .value.trim();
+    const name =
+        document
+            .getElementById("edit-student-name")
+            .value
+            .trim();
+
+    const studentClass =
+        document
+            .getElementById("edit-student-class")
+            .value
+            .trim();
 
     if (!name) {
-        alert("Le nom de l'élève est obligatoire.");
+
+        alert(
+            "Le nom est obligatoire."
+        );
+
         return;
     }
 
-    const { error } = await supabaseClient
-        .from("Students")
-        .update({
-            name,
-            class: studentClass
-        })
-        .eq("id", id);
-
-    if (error) {
-        alert("Impossible de modifier l'élève : " + error.message);
-        return;
-    }
-
-    await showDashboard();
-}
-
-
-/* =========================
-   SUPPRIMER UN ÉLÈVE
-========================= */
-
-async function deleteStudent(id) {
-    const { data: student, error: findError } =
+    const { error } =
         await supabaseClient
             .from("Students")
-            .select("name")
-            .eq("id", id)
-            .single();
-
-    if (findError || !student) {
-        alert(findError?.message || "Élève introuvable.");
-        return;
-    }
-
-    if (!confirm(`Supprimer l'élève ${student.name} ?`)) {
-        return;
-    }
-
-    const { error } = await supabaseClient
-        .from("Students")
-        .delete()
-        .eq("id", id);
+            .update({
+                name,
+                class: studentClass
+            })
+            .eq("id", id);
 
     if (error) {
-        alert("Impossible de supprimer l'élève : " + error.message);
+
+        alert(error.message);
+
         return;
     }
 
-    await showDashboard();
+    showDashboard();
+}
+
+
+async function deleteStudent(id) {
+
+    if (
+        !confirm(
+            "Supprimer cet élève et toutes ses données ?"
+        )
+    ) {
+        return;
+    }
+
+    const tables = [
+        "Sessions",
+        "Notes",
+        "Progress",
+        "Difficulties"
+    ];
+
+    for (const table of tables) {
+
+        const { error } =
+            await supabaseClient
+                .from(table)
+                .delete()
+                .eq("student_id", id);
+
+        if (error) {
+
+            alert(
+                "Impossible de supprimer les données de " +
+                table +
+                " : " +
+                error.message
+            );
+
+            return;
+        }
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("Students")
+            .delete()
+            .eq("id", id);
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showDashboard();
 }
 
 
 /* =========================
-   OUVRIR LA FICHE D'UN ÉLÈVE
+   PAGE ÉLÈVE
 ========================= */
 
 async function openStudent(id) {
-    const clickedId = String(id);
 
     const { data: student, error } =
         await supabaseClient
             .from("Students")
             .select("*")
-            .eq("id", clickedId)
+            .eq("id", id)
             .single();
 
-    if (error || !student) {
-        alert(error?.message || "Élève introuvable.");
-        return;
-    }
+    if (error) {
 
-    // Vérification : on ouvre la fiche correspondant à l'identifiant cliqué.
-    if (String(student.id) !== clickedId) {
-        alert("Erreur : l'identifiant de l'élève ne correspond pas.");
+        alert(error.message);
+
         return;
     }
 
     currentStudent = student;
+
     renderStudentPage();
 }
 
 
+function renderStudentPage() {
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <div>
+
+                    <h1>
+                        ${escapeHTML(currentStudent.name)}
+                    </h1>
+
+                    <p>
+                        ${escapeHTML(currentStudent.class || "")}
+                    </p>
+
+                </div>
+
+
+                <button onclick="showDashboard()">
+                    Retour aux élèves
+                </button>
+
+            </div>
+
+
+            <div class="student-menu">
+
+                <button onclick="showSessions()">
+                    Séances
+                </button>
+
+
+                <button onclick="showNotes()">
+                    Notes
+                </button>
+
+
+                <button onclick="showProgress()">
+                    Progression
+                </button>
+
+
+                <button onclick="showDifficulties()">
+                    Difficultés
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
 /* =========================
-   PAGE PRINCIPALE DE L'ÉLÈVE
+   SÉANCES
 ========================= */
 
-function renderStudentPage() {
-    if (!currentStudent) {
-        showDashboard();
+async function showSessions() {
+
+    const { data: sessions, error } =
+        await supabaseClient
+            .from("Sessions")
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .order("date", { ascending: false });
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    const subjects = [
+        ...new Set(
+            (sessions || [])
+                .map(session => session.subject)
+                .filter(Boolean)
+        )
+    ];
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <div>
+
+                    <h1>
+                        Séances
+                    </h1>
+
+                    <p>
+                        ${escapeHTML(currentStudent.name)}
+                    </p>
+
+                </div>
+
+
+                <button onclick="renderStudentPage()">
+                    Retour
+                </button>
+
+            </div>
+
+
+            <div class="section-title">
+
+                <h2 class="page-title">
+                    Matières
+                </h2>
+
+
+                
+<button onclick="addSession()">
+    + Ajouter une séance
+</button>
+
+<button onclick="showAllSubjectDocuments()">
+    📚 Documents PDF
+</button>
+
+
+            </div>
+
+
+            <div>
+
+                ${
+                    subjects.length
+
+                        ? subjects.map(subject => {
+
+                            const subjectSessions =
+                                (sessions || [])
+                                    .filter(
+                                        session =>
+                                            session.subject === subject
+                                    );
+
+                            return `
+                                <section
+                                    style="
+                                        margin-bottom:20px;
+                                        padding:20px;
+                                        border:1px solid #dde2e8;
+                                        border-radius:12px;
+                                        text-align:left;
+                                    "
+                                >
+
+                                    <div
+                                        style="
+                                            display:flex;
+                                            justify-content:space-between;
+                                            align-items:center;
+                                            gap:15px;
+                                            margin-bottom:15px;
+                                        "
+                                    >
+
+                                        <h2
+                                            style="
+                                                margin:0;
+                                                text-align:left;
+                                            "
+                                        >
+                                            ${escapeHTML(subject)}
+                                        </h2>
+
+
+                                        <button
+                                            onclick="
+                                                addSessionForSubject(
+                                                    '${encodeURIComponent(subject)}'
+                                                )
+                                            "
+                                        >
+                                            + Ajouter une séance
+                                        </button>
+
+                                    </div>
+
+
+                                    <div
+                                        style="
+                                            text-align:left;
+                                        "
+                                    >
+
+                                        ${
+                                            subjectSessions.length
+
+                                                ? subjectSessions.map(
+                                                    session => `
+                                                        <div
+                                                            style="
+                                                                padding:15px 0;
+                                                                border-bottom:1px solid #dde2e8;
+                                                                cursor:pointer;
+                                                                text-align:left;
+                                                            "
+                                                            onclick="
+                                                                showSession(
+                                                                    '${session.id}'
+                                                                )
+                                                            "
+                                                        >
+
+                                                            <strong>
+                                                                Séance du
+                                                                ${formatDate(session.date)}
+                                                            </strong>
+
+                                                            ${session.duration_minutes != null ? `
+                                                                <span style="margin-left:10px; color:#64748b;">
+                                                                    ${formatDuration(session.duration_minutes)}
+                                                                </span>
+                                                            ` : ""}
+
+                                                        </div>
+                                                    `
+                                                ).join("")
+
+                                                : `
+                                                    <p
+                                                        style="
+                                                            text-align:left;
+                                                        "
+                                                    >
+                                                        Aucune séance.
+                                                    </p>
+                                                `
+                                        }
+
+                                    </div>
+
+                                </section>
+                            `;
+
+                        }).join("")
+
+                        : `
+                            <p
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                Aucune séance enregistrée.
+                            </p>
+                        `
+                }
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function addSessionForSubject(encodedSubject) {
+
+    const subject =
+        decodeURIComponent(encodedSubject);
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Ajouter une séance
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <label>
+                    Date
+                </label>
+
+
+                <input
+                    id="session-date"
+                    type="date"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <label>
+                    Matière
+                </label>
+
+
+                <input
+                    id="session-subject"
+                    value="${escapeHTML(subject)}"
+                    readonly
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        background:#f3f4f6;
+                        cursor:not-allowed;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Durée totale
+                </label>
+
+                <select
+                    id="session-duration"
+                    required
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+                    ${durationOptions()}
+                </select>
+
+
+                <label>
+                    Résumé
+                </label>
+
+
+                <textarea
+                    id="session-summary"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                ></textarea>
+
+
+                <label>
+                    Conclusion
+                </label>
+
+
+                <textarea
+                    id="session-conclusion"
+                    rows="5"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                ></textarea>
+
+
+                <button onclick="saveSession()">
+                    Enregistrer
+                </button>
+
+
+                <button onclick="showSessions()">
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function showSubjectSessions(encodedSubject) {
+
+    const subject =
+        decodeURIComponent(encodedSubject);
+
+    const { data: sessions, error } =
+        await supabaseClient
+            .from("Sessions")
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .eq("subject", subject)
+            .order("date", { ascending: false });
+
+    if (error) {
+
+        alert(error.message);
+
         return;
     }
 
     app().innerHTML = `
         <div class="dashboard">
+
             <div class="topbar">
+
                 <div>
-                    <h1>${escapeHTML(currentStudent.name)}</h1>
-                    <p>${escapeHTML(currentStudent.class || "")}</p>
+
+                    <h1>
+                        ${escapeHTML(subject)}
+                    </h1>
+
+                    <p>
+                        Séances
+                    </p>
+
                 </div>
 
-                <button onclick="showDashboard()">
-                    Retour aux élèves
+
+                <button onclick="showSessions()">
+                    Retour
                 </button>
+
             </div>
 
-            <div class="student-menu">
-                <button onclick="showSessions()">Séances</button>
-                <button onclick="showNotes()">Notes</button>
-                <button onclick="showProgress()">Progression</button>
-                <button onclick="showDifficulties()">Difficultés</button>
-            </div>
-        </div>
-    `;
-}
-// ============================================
-// PARTIE 2 — FICHE ÉLÈVE ET SÉANCES
-// ============================================
 
-// Afficher la fiche de l'élève sélectionné
-async function openStudent(id) {
-    try {
-        const studentId = Number(id);
+            <section>
 
-        if (!Number.isSafeInteger(studentId) || studentId <= 0) {
-            alert("Identifiant d'élève invalide.");
-            return;
-        }
-
-        const { data: student, error } = await supabaseClient
-            .from("Students")
-            .select("*")
-            .eq("id", studentId)
-            .single();
-
-        if (error) throw error;
-
-        if (!student) {
-            alert("Élève introuvable.");
-            return;
-        }
-
-        // Toujours conserver l'élève réellement sélectionné
-        currentStudent = student;
-
-        renderStudentPage();
-    } catch (error) {
-        console.error("Erreur ouverture fiche élève :", error);
-        alert("Impossible d'ouvrir cette fiche élève.");
-    }
-}
+                <h2>
+                    Dates
+                </h2>
 
 
-// Afficher la fiche de l'élève
-function renderStudentPage() {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
+                ${
+                    sessions && sessions.length
 
-    const student = currentStudent;
+                        ? sessions.map(session => `
+                            <div
+                                style="
+                                    padding:15px 0;
+                                    border-bottom:1px solid #dde2e8;
+                                    cursor:pointer;
+                                    text-align:left;
+                                "
+                                onclick="
+                                    showSession('${session.id}')
+                                "
+                            >
 
-    app.innerHTML = `
-        <div class="page-container">
-            <button class="btn btn-secondary" onclick="showDashboard()">
-                ← Retour aux élèves
-            </button>
+                                <strong>
+                                    Séance du
+                                    ${formatDate(session.date)}
+                                </strong>
 
-            <div class="student-header">
-                <h1>${escapeHTML(student.name || "Élève")}</h1>
-                <p>Classe : ${escapeHTML(student.class || "Non renseignée")}</p>
-            </div>
+                                ${session.duration_minutes != null ? `
+                                    <span style="margin-left:10px; color:#64748b;">
+                                        ${formatDuration(session.duration_minutes)}
+                                    </span>
+                                ` : ""}
 
-            <div class="student-menu">
-                <button class="btn" onclick="showSessions()">
-                    Séances
-                </button>
+                            </div>
+                        `).join("")
 
-                <button class="btn" onclick="showNotes()">
-                    Notes
-                </button>
+                        : `
+                            <p
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                Aucune séance.
+                            </p>
+                        `
+                }
 
-                <button class="btn" onclick="showProgress()">
-                    Progression
-                </button>
+            </section>
 
-                <button class="btn" onclick="showDifficulties()">
-                    Difficultés
-                </button>
-            </div>
         </div>
     `;
 }
 
-
-// ============================================
-// SÉANCES — LISTE DES SÉANCES DE L'ÉLÈVE
-// ============================================
-
-async function showSessions() {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
-
-    const studentId = currentStudent.id;
-
-    app.innerHTML = `
-        <div class="page-container">
-            <button class="btn btn-secondary" onclick="renderStudentPage()">
-                ← Retour à la fiche
-            </button>
-
-            <h1>Séances de ${escapeHTML(currentStudent.name || "")}</h1>
-
-            <button class="btn btn-primary"
-                onclick="addSessionForSubject()">
-                + Ajouter une séance
-            </button>
-
-            <div id="sessions-list">
-                Chargement des séances...
-            </div>
-        </div>
-    `;
-
-    try {
-        const { data: sessions, error } = await supabaseClient
-            .from("Sessions")
-            .select("*")
-            .eq("student_id", studentId)
-            .order("date", { ascending: false });
-
-        if (error) throw error;
-
-        // Éviter d'afficher les résultats d'un autre élève
-        if (!currentStudent || Number(currentStudent.id) !== Number(studentId)) {
-            return;
-        }
-
-        const list = document.getElementById("sessions-list");
-        if (!list) return;
-
-        if (!sessions || sessions.length === 0) {
-            list.innerHTML = `
-                <p>Aucune séance enregistrée pour cet élève.</p>
-            `;
-            return;
-        }
-
-        list.innerHTML = sessions.map(session => `
-            <div class="session-card">
-                <h3>${escapeHTML(session.subject || "Séance")}</h3>
-
-                <p>
-                    Date :
-                    ${escapeHTML(session.date || "Non renseignée")}
-                </p>
-
-                <button class="btn"
-                    onclick="showSession(${Number(session.id)})">
-                    Ouvrir
-                </button>
-            </div>
-        `).join("");
-
-    } catch (error) {
-        console.error("Erreur chargement séances :", error);
-
-        const list = document.getElementById("sessions-list");
-        if (list) {
-            list.innerHTML = `
-                <p>Erreur lors du chargement des séances.</p>
-            `;
-        }
-    }
-}
-
-
-// ============================================
-// AJOUTER UNE SÉANCE
-// ============================================
-
-function addSessionForSubject() {
-    if (!currentStudent) {
-        alert("Veuillez d'abord sélectionner un élève.");
-        return;
-    }
-
-    app.innerHTML = `
-        <div class="page-container">
-            <button class="btn btn-secondary" onclick="showSessions()">
-                ← Retour aux séances
-            </button>
-
-            <h1>Nouvelle séance</h1>
-
-            <form id="add-session-form">
-                <label for="session-subject">Matière</label>
-                <input
-                    id="session-subject"
-                    name="subject"
-                    type="text"
-                    required
-                >
-
-                <label for="session-date">Date</label>
-                <input
-                    id="session-date"
-                    name="date"
-                    type="date"
-                    value="${new Date().toISOString().slice(0, 10)}"
-                    required
-                >
-
-                <label for="session-duration">Durée (minutes)</label>
-                <input
-                    id="session-duration"
-                    name="duration"
-                    type="number"
-                    min="1"
-                    value="60"
-                    required
-                >
-
-                <label for="session-content">Contenu de la séance</label>
-                <textarea
-                    id="session-content"
-                    name="content"
-                    rows="5"
-                ></textarea>
-
-                <button class="btn btn-primary" type="submit">
-                    Enregistrer la séance
-                </button>
-            </form>
-        </div>
-    `;
-
-    document.getElementById("add-session-form")
-        .addEventListener("submit", addSession);
-}
-
-
-// Enregistrer une nouvelle séance
-async function addSession(event) {
-    if (event) event.preventDefault();
-
-    if (!currentStudent) {
-        alert("Aucun élève sélectionné.");
-        return;
-    }
-
-    const studentId = currentStudent.id;
-    const form = document.getElementById("add-session-form");
-
-    if (!form) return;
-
-    const formData = new FormData(form);
-
-    const session = {
-        student_id: studentId,
-        subject: String(formData.get("subject") || "").trim(),
-        date: String(formData.get("date") || ""),
-        duration: Number(formData.get("duration") || 60),
-        content: String(formData.get("content") || "").trim()
-    };
-
-    if (!session.subject || !session.date || session.duration <= 0) {
-        alert("Veuillez vérifier les champs du formulaire.");
-        return;
-    }
-
-    try {
-        const { error } = await supabaseClient
-            .from("Sessions")
-            .insert(session);
-
-        if (error) throw error;
-
-        alert("Séance enregistrée !");
-        showSessions();
-
-    } catch (error) {
-        console.error("Erreur ajout séance :", error);
-        alert("Impossible d'enregistrer la séance. Vérifiez les colonnes de la table Sessions.");
-    }
-}
-
-
-// ============================================
-// OUVRIR UNE SÉANCE PRÉCISE
-// ============================================
 
 async function showSession(id) {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
 
-    const studentId = currentStudent.id;
-    const sessionId = Number(id);
-
-    if (!Number.isSafeInteger(sessionId) || sessionId <= 0) {
-        alert("Identifiant de séance invalide.");
-        return;
-    }
-
-    try {
-        const { data: session, error } = await supabaseClient
+    const { data: session, error } =
+        await supabaseClient
             .from("Sessions")
             .select("*")
-            .eq("id", sessionId)
-            .eq("student_id", studentId)
+            .eq("id", id)
             .single();
 
-        if (error) throw error;
+    if (error) {
 
-        if (!session) {
-            alert("Cette séance n'existe pas pour cet élève.");
-            return;
-        }
+        alert(error.message);
 
-        // Vérifier que l'élève actif n'a pas changé pendant la requête
-        if (
-            !currentStudent ||
-            Number(currentStudent.id) !== Number(studentId)
-        ) {
-            return;
-        }
+        return;
+    }
 
-        app.innerHTML = `
-            <div class="page-container">
-                <button class="btn btn-secondary" onclick="showSessions()">
-                    ← Retour aux séances
-                </button>
+    app().innerHTML = `
+        <div class="dashboard">
 
-                <h1>${escapeHTML(session.subject || "Séance")}</h1>
+            <div class="topbar">
 
-                <p>
-                    Élève :
-                    <strong>${escapeHTML(currentStudent.name || "")}</strong>
-                </p>
+                <div>
 
-                <p>Date : ${escapeHTML(session.date || "Non renseignée")}</p>
+                    <h1>
+                        Séance du formatDate(session.date){session.duration_minutes != null ? ` — ${formatDuration(session.duration_minutes)}` : ""}
+                    </h1>
 
-                <p>Durée : ${escapeHTML(String(session.duration ?? ""))} minutes</p>
+                    <p>
+                        ${escapeHTML(session.subject)}
+                    </p>
 
-                <h3>Contenu</h3>
-                <div class="session-content">
-                    ${escapeHTML(session.content || "Aucun contenu renseigné.")}
                 </div>
 
-                <button class="btn"
-                    onclick="editSession(${Number(session.id)})">
+
+                <button
+                    onclick="
+                        showSubjectSessions(
+                            '${encodeURIComponent(session.subject)}'
+                        )
+                    "
+                >
+                    Retour
+                </button>
+
+            </div>
+
+
+            <div class="student-menu">
+
+                <button
+                    onclick="
+                        showSessionSummary('${session.id}')
+                    "
+                >
+                    Résumé de la séance
+                </button>
+
+
+                <button
+                    onclick="
+                        showSessionConclusion('${session.id}')
+                    "
+                >
+                    Conclusion
+                </button>
+
+            </div>
+
+
+            <section
+                style="
+                    margin-top:20px;
+                    text-align:left;
+                "
+            >
+
+                <button
+                    onclick="
+                        editSession('${session.id}')
+                    "
+                >
                     Modifier
                 </button>
 
-                <button class="btn btn-danger"
-                    onclick="deleteSession(${Number(session.id)})">
+
+                <button
+                    onclick="
+                        deleteSession('${session.id}')
+                    "
+                >
                     Supprimer
                 </button>
-            </div>
-        `;
 
-    } catch (error) {
-        console.error("Erreur ouverture séance :", error);
-        alert("Impossible d'ouvrir cette séance.");
-    }
-}
-// ============================================
-// PARTIE 3 — MODIFIER UNE SÉANCE
-// ============================================
+            </section>
 
-async function editSession(id) {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
-
-    const studentId = currentStudent.id;
-    const sessionId = Number(id);
-
-    try {
-        const { data: session, error } = await supabaseClient
-            .from("Sessions")
-            .select("*")
-            .eq("id", sessionId)
-            .eq("student_id", studentId)
-            .single();
-
-        if (error) throw error;
-
-        if (
-            !currentStudent ||
-            Number(currentStudent.id) !== Number(studentId)
-        ) {
-            return;
-        }
-
-        app.innerHTML = `
-            <div class="page-container">
-                <button class="btn btn-secondary" onclick="showSessions()">
-                    ← Retour
-                </button>
-
-                <h1>Modifier la séance</h1>
-
-                <form id="edit-session-form">
-                    <label for="edit-subject">Matière</label>
-                    <input
-                        id="edit-subject"
-                        name="subject"
-                        type="text"
-                        value="${escapeHTML(session.subject || "")}"
-                        required
-                    >
-
-                    <label for="edit-date">Date</label>
-                    <input
-                        id="edit-date"
-                        name="date"
-                        type="date"
-                        value="${escapeHTML(session.date || "")}"
-                        required
-                    >
-
-                    <label for="edit-duration">Durée (minutes)</label>
-                    <input
-                        id="edit-duration"
-                        name="duration"
-                        type="number"
-                        min="1"
-                        value="${Number(session.duration) || 60}"
-                        required
-                    >
-
-                    <label for="edit-content">Contenu</label>
-                    <textarea
-                        id="edit-content"
-                        name="content"
-                        rows="6"
-                    >${escapeHTML(session.content || "")}</textarea>
-
-                    <button class="btn btn-primary" type="submit">
-                        Enregistrer les modifications
-                    </button>
-                </form>
-            </div>
-        `;
-
-        document
-            .getElementById("edit-session-form")
-            .addEventListener("submit", function(event) {
-                saveEditedSession(event, sessionId, studentId);
-            });
-
-    } catch (error) {
-        console.error("Erreur chargement séance :", error);
-        alert("Impossible de charger cette séance.");
-    }
-}
-
-
-// Enregistrer les modifications d'une séance
-async function saveEditedSession(event, sessionId, studentId) {
-    event.preventDefault();
-
-    if (
-        !currentStudent ||
-        Number(currentStudent.id) !== Number(studentId)
-    ) {
-        alert("L'élève sélectionné a changé. Veuillez réessayer.");
-        return;
-    }
-
-    const form = document.getElementById("edit-session-form");
-    if (!form) return;
-
-    const formData = new FormData(form);
-
-    const updates = {
-        subject: String(formData.get("subject") || "").trim(),
-        date: String(formData.get("date") || ""),
-        duration: Number(formData.get("duration")),
-        content: String(formData.get("content") || "").trim()
-    };
-
-    if (
-        !updates.subject ||
-        !updates.date ||
-        !Number.isFinite(updates.duration) ||
-        updates.duration <= 0
-    ) {
-        alert("Veuillez vérifier les informations saisies.");
-        return;
-    }
-
-    try {
-        const { error } = await supabaseClient
-            .from("Sessions")
-            .update(updates)
-            .eq("id", sessionId)
-            .eq("student_id", studentId);
-
-        if (error) throw error;
-
-        alert("Séance modifiée avec succès !");
-        showSessions();
-
-    } catch (error) {
-        console.error("Erreur modification séance :", error);
-        alert("Impossible de modifier la séance.");
-    }
-}
-
-
-// ============================================
-// SUPPRIMER UNE SÉANCE
-// ============================================
-
-async function deleteSession(id) {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
-
-    const studentId = currentStudent.id;
-    const sessionId = Number(id);
-
-    if (!Number.isSafeInteger(sessionId) || sessionId <= 0) {
-        alert("Identifiant de séance invalide.");
-        return;
-    }
-
-    const confirmation = confirm(
-        "Voulez-vous vraiment supprimer cette séance ? Cette action est irréversible."
-    );
-
-    if (!confirmation) return;
-
-    try {
-        const { error } = await supabaseClient
-            .from("Sessions")
-            .delete()
-            .eq("id", sessionId)
-            .eq("student_id", studentId);
-
-        if (error) throw error;
-
-        alert("Séance supprimée.");
-        showSessions();
-
-    } catch (error) {
-        console.error("Erreur suppression séance :", error);
-        alert("Impossible de supprimer cette séance.");
-    }
-}
-// ============================================
-// PARTIE 4 — NOTES
-// ============================================
-
-async function showNotes() {
-    if (!currentStudent) {
-        showDashboard();
-        return;
-    }
-
-    const studentId = currentStudent.id;
-
-    app.innerHTML = `
-        <div class="page-container">
-            <button class="btn btn-secondary" onclick="renderStudentPage()">
-                ← Retour à la fiche
-            </button>
-
-            <h1>Notes — ${escapeHTML(currentStudent.name || "")}</h1>
-
-            <form id="note-form">
-                <label for="note-title">Titre</label>
-                <input id="note-title" name="title" required>
-
-                <label for="note-content">Note</label>
-                <textarea id="note-content" name="content" rows="4" required></textarea>
-
-                <button class="btn btn-primary" type="submit">
-                    Ajouter une note
-                </button>
-            </form>
-
-            <div id="notes-list">Chargement...</div>
         </div>
     `;
-
-    document.getElementById("note-form")
-        .addEventListener("submit", saveNote);
-
-    try {
-        const { data, error } = await supabaseClient
-            .from("Notes")
-            .select("*")
-            .eq("student_id", studentId)
-            .order("id", { ascending: false });
-
-        if (error) throw error;
-
-        if (!currentStudent || Number(currentStudent.id) !== Number(studentId)) {
-            return;
-        }
-
-        const list = document.getElementById("notes-list");
-        if (!list) return;
-
-        list.innerHTML = !data || data.length === 0
-            ? "<p>Aucune note enregistrée.</p>"
-            : data.map(note => `
-                <article class="note-card">
-                    <h3>${escapeHTML(note.title || "Note")}</h3>
-                    <p>${escapeHTML(note.content || "")}</p>
-                    <button class="btn btn-danger"
-                        onclick="deleteNote(${Number(note.id)})">
-                        Supprimer
-                    </button>
-                </article>
-            `).join("");
-
-    } catch (error) {
-        console.error("Erreur chargement notes :", error);
-        const list = document.getElementById("notes-list");
-        if (list) list.textContent = "Impossible de charger les notes.";
-    }
 }
 
 
-async function saveNote(event) {
-    event.preventDefault();
+async function showSessionSummary(id) {
 
-    if (!currentStudent) return;
+    const { data: session, error } =
+        await supabaseClient
+            .from("Sessions")
+            .select("*")
+            .eq("id", id)
+            .single();
 
-    const studentId = currentStudent.id;
-    const form = document.getElementById("note-form");
-    if (!form) return;
+    if (error) {
 
-    const formData = new FormData(form);
+        alert(error.message);
 
-    const note = {
-        student_id: studentId,
-        title: String(formData.get("title") || "").trim(),
-        content: String(formData.get("content") || "").trim()
-    };
-
-    if (!note.title || !note.content) {
-        alert("Veuillez remplir le titre et la note.");
         return;
     }
 
-    try {
-        const { error } = await supabaseClient
-            .from("Notes")
-            .insert(note);
+    app().innerHTML = `
+        <div class="dashboard">
 
-        if (error) throw error;
+            <div class="topbar">
 
-        showNotes();
+                <h1>
+                    Résumé de la séance
+                </h1>
 
-    } catch (error) {
-        console.error("Erreur enregistrement note :", error);
-        alert("Impossible d'enregistrer la note. Vérifiez la structure de la table Notes.");
+
+                <button
+                    onclick="
+                        showSession('${id}')
+                    "
+                >
+                    Retour
+                </button>
+
+            </div>
+
+
+            <section
+                style="
+                    text-align:left;
+                "
+            >
+
+                <p
+                    style="
+                        white-space:pre-wrap;
+                        text-align:left !important;
+                        direction:ltr;
+                        text-indent:0;
+                    "
+                >${escapeHTML(session.summary || "Aucun résumé.")}</p>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function showSessionConclusion(id) {
+
+    const { data: session, error } =
+        await supabaseClient
+            .from("Sessions")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
     }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Conclusion
+                </h1>
+
+
+                <button
+                    onclick="
+                        showSession('${id}')
+                    "
+                >
+                    Retour
+                </button>
+
+            </div>
+
+
+            <section
+                style="
+                    text-align:left;
+                "
+            >
+
+                <p
+                    style="
+                        white-space:pre-wrap;
+                        text-align:left !important;
+                        direction:ltr;
+                        text-indent:0;
+                    "
+                >${escapeHTML(session.conclusion || "Aucune conclusion.")}</p>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+function addSession() {
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Ajouter une séance
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <label>
+                    Date
+                </label>
+
+
+                <input
+                    id="session-date"
+                    type="date"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <label>
+                    Matière
+                </label>
+
+
+                <input
+                    id="session-subject"
+                    placeholder="Mathématiques, Français..."
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Durée totale
+                </label>
+
+                <select
+                    id="session-duration"
+                    required
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+                    ${durationOptions()}
+                </select>
+
+
+                <label>
+                    Résumé
+                </label>
+
+
+                <textarea
+                    id="session-summary"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                ></textarea>
+
+
+                <label>
+                    Conclusion
+                </label>
+
+
+                <textarea
+                    id="session-conclusion"
+                    rows="5"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                ></textarea>
+
+
+                <button onclick="saveSession()">
+                    Enregistrer
+                </button>
+
+
+                <button onclick="showSessions()">
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveSession() {
+
+    const date =
+        document
+            .getElementById("session-date")
+            .value;
+
+    const subject =
+        document
+            .getElementById("session-subject")
+            .value
+            .trim();
+
+    const summary =
+        document
+            .getElementById("session-summary")
+            .value
+            .trim();
+
+    const conclusion =
+        document
+            .getElementById("session-conclusion")
+            .value
+            .trim();
+
+    const durationMinutes =
+        document
+            .getElementById("session-duration")
+            .value;
+
+    if (!date || !subject) {
+
+        alert(
+            "La date et la matière sont obligatoires."
+        );
+
+        return;
+    }
+
+    if (!durationMinutes) {
+        alert("Choisis la durée totale de la séance.");
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("Sessions")
+            .insert({
+                student_id: currentStudent.id,
+                date,
+                subject,
+                summary,
+                conclusion,
+                duration_minutes: Number(durationMinutes)
+            });
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showSessions();
+}
+
+
+async function editSession(id) {
+
+    const { data: session, error } =
+        await supabaseClient
+            .from("Sessions")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Modifier la séance
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <label>
+                    Date
+                </label>
+
+
+                <input
+                    id="edit-session-date"
+                    type="date"
+                    value="${session.date || ""}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <label>
+                    Matière
+                </label>
+
+
+                <input
+                    id="edit-session-subject"
+                    value="${escapeHTML(session.subject || "")}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Durée totale
+                </label>
+
+                <select
+                    id="edit-session-duration"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+                    ${durationOptions(session.duration_minutes)}
+                </select>
+
+
+                <label>
+                    Résumé
+                </label>
+
+
+                <textarea
+                    id="edit-session-summary"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                >${escapeHTML(session.summary || "")}</textarea>
+
+
+                <label>
+                    Conclusion
+                </label>
+
+
+                <textarea
+                    id="edit-session-conclusion"
+                    rows="5"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                >${escapeHTML(session.conclusion || "")}</textarea>
+
+
+                <button
+                    onclick="
+                        saveEditedSession('${id}')
+                    "
+                >
+                    Enregistrer
+                </button>
+
+
+                <button
+                    onclick="
+                        showSession('${id}')
+                    "
+                >
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveEditedSession(id) {
+
+    const date =
+        document
+            .getElementById("edit-session-date")
+            .value;
+
+    const subject =
+        document
+            .getElementById("edit-session-subject")
+            .value
+            .trim();
+
+    const summary =
+        document
+            .getElementById("edit-session-summary")
+            .value
+            .trim();
+
+    const conclusion =
+        document
+            .getElementById("edit-session-conclusion")
+            .value
+            .trim();
+
+    const durationMinutes =
+        document
+            .getElementById("edit-session-duration")
+            .value;
+
+    if (!date || !subject) {
+
+        alert(
+            "La date et la matière sont obligatoires."
+        );
+
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("Sessions")
+            .update({
+                date,
+                subject,
+                summary,
+                conclusion,
+                duration_minutes: durationMinutes ? Number(durationMinutes) : null
+            })
+            .eq("id", id);
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showSession(id);
+}
+
+
+async function deleteSession(id) {
+
+    if (
+        !confirm(
+            "Supprimer cette séance ?"
+        )
+    ) {
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("Sessions")
+            .delete()
+            .eq("id", id);
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showSessions();
+}
+/* =========================
+   NOTES
+========================= */
+
+async function showNotes() {
+
+    const { data: notes, error } =
+        await supabaseClient
+            .from("Notes")
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .order("date", { ascending: false });
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    const average =
+        notes && notes.length
+            ? (
+                notes.reduce(
+                    (sum, note) =>
+                        sum + Number(note.grade || 0),
+                    0
+                ) / notes.length
+            ).toFixed(2)
+            : "—";
+
+    const subjects = [
+        ...new Set(
+            (notes || [])
+                .map(note => note.subject)
+                .filter(Boolean)
+        )
+    ];
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <div>
+
+                    <h1>
+                        Notes
+                    </h1>
+
+                    <p>
+                        ${escapeHTML(currentStudent.name)}
+                    </p>
+
+                </div>
+
+
+                <button onclick="renderStudentPage()">
+                    Retour
+                </button>
+
+            </div>
+
+
+            <div class="average-box">
+
+                <p>
+                    Moyenne générale
+                </p>
+
+                <strong>
+                    ${average}
+                </strong>
+
+                <span>
+                    /20
+                </span>
+
+            </div>
+
+
+            <div class="section-title">
+
+                <h2 class="page-title">
+                    Matières
+                </h2>
+
+
+                <button onclick="addNote()">
+                    + Ajouter une note
+                </button>
+
+            </div>
+
+
+            <div class="student-menu">
+
+                ${
+                    subjects.length
+
+                        ? subjects.map(subject => `
+                            <button
+                                onclick="
+                                    showSubjectNotes(
+                                        '${encodeURIComponent(subject)}'
+                                    )
+                                "
+                            >
+                                ${escapeHTML(subject)}
+                            </button>
+                        `).join("")
+
+                        : `
+                            <p>
+                                Aucune note.
+                            </p>
+                        `
+                }
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+async function showSubjectNotes(encodedSubject) {
+
+    const subject =
+        decodeURIComponent(encodedSubject);
+
+    const { data: notes, error } =
+        await supabaseClient
+            .from("Notes")
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .eq("subject", subject)
+            .order("date", { ascending: false });
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <div>
+
+                    <h1>
+                        ${escapeHTML(subject)}
+                    </h1>
+
+                    <p>
+                        Notes
+                    </p>
+
+                </div>
+
+
+                <button onclick="showNotes()">
+                    Retour
+                </button>
+
+            </div>
+
+
+            <section>
+
+                ${
+                    notes && notes.length
+
+                        ? notes.map(note => `
+                            <div
+                                style="
+                                    padding:15px 0;
+                                    border-bottom:1px solid #dde2e8;
+                                    cursor:pointer;
+                                    text-align:left;
+                                "
+                                onclick="
+                                    showNote('${note.id}')
+                                "
+                            >
+
+                                <strong>
+                                    ${escapeHTML(
+                                        note.title || "Note"
+                                    )}
+                                </strong>
+
+
+                                <p
+                                    style="
+                                        text-align:left;
+                                    "
+                                >
+                                    ${formatDate(note.date)}
+                                    —
+                                    ${Number(note.grade).toFixed(2)}/20
+                                </p>
+
+                            </div>
+                        `).join("")
+
+                        : `
+                            <p
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                Aucune note dans cette matière.
+                            </p>
+                        `
+                }
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function showNote(id) {
+
+    const { data: note, error } =
+        await supabaseClient
+            .from("Notes")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <div>
+
+                    <h1>
+                        ${escapeHTML(
+                            note.title || "Note"
+                        )}
+                    </h1>
+
+                    <p>
+                        ${escapeHTML(
+                            note.subject || ""
+                        )}
+                    </p>
+
+                </div>
+
+
+                <button
+                    onclick="
+                        showSubjectNotes(
+                            '${encodeURIComponent(
+                                note.subject
+                            )}'
+                        )
+                    "
+                >
+                    Retour
+                </button>
+
+            </div>
+
+
+            <section>
+
+                <p
+                    style="
+                        text-align:left;
+                    "
+                >
+                    Date :
+                    ${formatDate(note.date)}
+                </p>
+
+
+                <p
+                    style="
+                        margin-top:10px;
+                        text-align:left;
+                    "
+                >
+                    Note :
+                    <strong>
+                        ${Number(note.grade).toFixed(2)}/20
+                    </strong>
+                </p>
+
+            </section>
+
+
+            <section>
+
+                <button
+                    onclick="
+                        editNote('${note.id}')
+                    "
+                >
+                    Modifier
+                </button>
+
+
+                <button
+                    onclick="
+                        deleteNote('${note.id}')
+                    "
+                >
+                    Supprimer
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+function addNote() {
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Ajouter une note
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <label>
+                    Date
+                </label>
+
+
+                <input
+                    id="note-date"
+                    type="date"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <label>
+                    Matière
+                </label>
+
+
+                <input
+                    id="note-subject"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Évaluation
+                </label>
+
+
+                <input
+                    id="note-title"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Note
+                </label>
+
+
+                <input
+                    id="note-grade"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <label>
+                    Sur
+                </label>
+
+
+                <select
+                    id="note-max"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+                    <option value="5">
+                        5
+                    </option>
+
+                    <option value="10">
+                        10
+                    </option>
+
+                    <option
+                        value="20"
+                        selected
+                    >
+                        20
+                    </option>
+
+                </select>
+
+
+                <button onclick="saveNote()">
+                    Enregistrer
+                </button>
+
+
+                <button onclick="showNotes()">
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveNote() {
+
+    const date =
+        document
+            .getElementById("note-date")
+            .value;
+
+    const subject =
+        document
+            .getElementById("note-subject")
+            .value
+            .trim();
+
+    const title =
+        document
+            .getElementById("note-title")
+            .value
+            .trim();
+
+    const grade =
+        Number(
+            document
+                .getElementById("note-grade")
+                .value
+        );
+
+    const max =
+        Number(
+            document
+                .getElementById("note-max")
+                .value
+        );
+
+    if (
+        !date ||
+        !subject ||
+        !title ||
+        Number.isNaN(grade)
+    ) {
+
+        alert(
+            "Veuillez remplir tous les champs."
+        );
+
+        return;
+    }
+
+    if (
+        grade < 0 ||
+        grade > max
+    ) {
+
+        alert(
+            "La note est incorrecte."
+        );
+
+        return;
+    }
+
+    const normalized =
+        normalizeGrade(grade, max);
+
+    const { error } =
+        await supabaseClient
+            .from("Notes")
+            .insert({
+                student_id: currentStudent.id,
+                date,
+                subject,
+                title,
+                grade: normalized
+            });
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showNotes();
+}
+
+
+async function editNote(id) {
+
+    const { data: note, error } =
+        await supabaseClient
+            .from("Notes")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Modifier la note
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <label>
+                    Date
+                </label>
+
+
+                <input
+                    id="edit-note-date"
+                    type="date"
+                    value="${note.date || ""}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <label>
+                    Matière
+                </label>
+
+
+                <input
+                    id="edit-note-subject"
+                    value="${escapeHTML(
+                        note.subject || ""
+                    )}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Évaluation
+                </label>
+
+
+                <input
+                    id="edit-note-title"
+                    value="${escapeHTML(
+                        note.title || ""
+                    )}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <label>
+                    Nouvelle note /20
+                </label>
+
+
+                <input
+                    id="edit-note-grade"
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.01"
+                    value="${note.grade}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 15px;
+                    "
+                >
+
+
+                <button
+                    onclick="
+                        saveEditedNote('${id}')
+                    "
+                >
+                    Enregistrer
+                </button>
+
+
+                <button
+                    onclick="
+                        showNote('${id}')
+                    "
+                >
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveEditedNote(id) {
+
+    const date =
+        document
+            .getElementById("edit-note-date")
+            .value;
+
+    const subject =
+        document
+            .getElementById("edit-note-subject")
+            .value
+            .trim();
+
+    const title =
+        document
+            .getElementById("edit-note-title")
+            .value
+            .trim();
+
+    const grade =
+        Number(
+            document
+                .getElementById("edit-note-grade")
+                .value
+        );
+
+    if (
+        !date ||
+        !subject ||
+        !title ||
+        Number.isNaN(grade)
+    ) {
+
+        alert(
+            "Veuillez remplir tous les champs."
+        );
+
+        return;
+    }
+
+    if (
+        grade < 0 ||
+        grade > 20
+    ) {
+
+        alert(
+            "La note doit être entre 0 et 20."
+        );
+
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
+            .from("Notes")
+            .update({
+                date,
+                subject,
+                title,
+                grade
+            })
+            .eq("id", id);
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showNote(id);
 }
 
 
 async function deleteNote(id) {
-    if (!currentStudent) return;
 
-    if (!confirm("Supprimer cette note ?")) return;
+    if (
+        !confirm(
+            "Supprimer cette note ?"
+        )
+    ) {
+        return;
+    }
 
-    try {
-        const { error } = await supabaseClient
+    const { error } =
+        await supabaseClient
             .from("Notes")
             .delete()
-            .eq("id", Number(id))
-            .eq("student_id", currentStudent.id);
+            .eq("id", id);
 
-        if (error) throw error;
+    if (error) {
 
-        showNotes();
+        alert(error.message);
 
-    } catch (error) {
-        console.error("Erreur suppression note :", error);
-        alert("Impossible de supprimer cette note.");
+        return;
     }
+
+    showNotes();
 }
-
-
-// ============================================
-// PARTIE 4 — PROGRESSION
-// ============================================
+/* =========================
+   PROGRESSION
+========================= */
 
 async function showProgress() {
-    if (!currentStudent) {
-        showDashboard();
+
+    const { data: progress, error } =
+        await supabaseClient
+            .from("Progress")
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .order("id");
+
+    if (error) {
+
+        alert(error.message);
+
         return;
     }
 
-    const studentId = currentStudent.id;
+    app().innerHTML = `
+        <div class="dashboard">
 
-    app.innerHTML = `
-        <div class="page-container">
-            <button class="btn btn-secondary" onclick="renderStudentPage()">
-                ← Retour à la fiche
-            </button>
+            <div class="topbar">
 
-            <h1>Progression — ${escapeHTML(currentStudent.name || "")}</h1>
+                <div>
 
-            <form id="progress-form">
-                <label for="progress-subject">Matière</label>
-                <input id="progress-subject" name="subject" required>
+                    <h1>
+                        Progression
+                    </h1>
 
-                <label for="progress-level">Niveau / progression</label>
-                <input id="progress-level" name="level" required>
+                    <p>
+                        ${escapeHTML(currentStudent.name)}
+                    </p>
 
-                <label for="progress-comment">Commentaire</label>
-                <textarea id="progress-comment" name="comment" rows="4"></textarea>
+                </div>
 
-                <button class="btn btn-primary" type="submit">
-                    Enregistrer
+
+                <button onclick="renderStudentPage()">
+                    Retour
                 </button>
-            </form>
 
-            <div id="progress-list">Chargement...</div>
+            </div>
+
+
+            <div class="section-title">
+
+                <h2 class="page-title">
+                    Suivi de progression
+                </h2>
+
+
+                <button onclick="addProgress()">
+                    + Ajouter
+                </button>
+
+            </div>
+
+
+            ${
+                progress && progress.length
+
+                    ? progress.map(item => `
+                        <section
+                            style="
+                                text-align:left;
+                            "
+                        >
+
+                            <h2
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                ${escapeHTML(
+                                    item.category || ""
+                                )}
+                            </h2>
+
+
+                            <p
+                                style="
+                                    white-space:pre-wrap;
+                                    text-align:left !important;
+                                    direction:ltr;
+                                    text-indent:0;
+                                "
+                            >${escapeHTML(
+                                item.comment || ""
+                            )}</p>
+
+
+                            <div
+                                style="
+                                    margin-top:15px;
+                                    text-align:left;
+                                "
+                            >
+
+                                <button
+                                    onclick="
+                                        editProgress(
+                                            '${item.id}'
+                                        )
+                                    "
+                                >
+                                    Modifier
+                                </button>
+
+
+                                <button
+                                    onclick="
+                                        deleteProgress(
+                                            '${item.id}'
+                                        )
+                                    "
+                                >
+                                    Supprimer
+                                </button>
+
+                            </div>
+
+                        </section>
+                    `).join("")
+
+                    : `
+                        <section>
+
+                            <p
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                Aucune progression enregistrée.
+                            </p>
+
+                        </section>
+                    `
+            }
+
         </div>
     `;
-
-    document.getElementById("progress-form")
-        .addEventListener("submit", saveProgress);
-
-    try {
-        const { data, error } = await supabaseClient
-            .from("Progress")
-            .select("*")
-            .eq("student_id", studentId)
-            .order("id", { ascending: false });
-
-        if (error) throw error;
-
-        if (!currentStudent || Number(currentStudent.id) !== Number(studentId)) {
-            return;
-        }
-
-        const list = document.getElementById("progress-list");
-        if (!list) return;
-
-        list.innerHTML = !data || data.length === 0
-            ? "<p>Aucune progression enregistrée.</p>"
-            : data.map(item => `
-                <article class="progress-card">
-                    <h3>${escapeHTML(item.subject || "Matière")}</h3>
-                    <p><strong>Niveau :</strong> ${escapeHTML(item.level || "")}</p>
-                    <p>${escapeHTML(item.comment || "")}</p>
-                    <button class="btn btn-danger"
-                        onclick="deleteProgress(${Number(item.id)})">
-                        Supprimer
-                    </button>
-                </article>
-            `).join("");
-
-    } catch (error) {
-        console.error("Erreur chargement progression :", error);
-        const list = document.getElementById("progress-list");
-        if (list) list.textContent = "Impossible de charger la progression.";
-    }
 }
 
 
-async function saveProgress(event) {
-    event.preventDefault();
+function addProgress() {
 
-    if (!currentStudent) return;
+    app().innerHTML = `
+        <div class="dashboard">
 
-    const form = document.getElementById("progress-form");
-    if (!form) return;
+            <div class="topbar">
 
-    const formData = new FormData(form);
+                <h1>
+                    Ajouter une progression
+                </h1>
 
-    const record = {
-        student_id: currentStudent.id,
-        subject: String(formData.get("subject") || "").trim(),
-        level: String(formData.get("level") || "").trim(),
-        comment: String(formData.get("comment") || "").trim()
-    };
+            </div>
 
-    if (!record.subject || !record.level) {
-        alert("Veuillez remplir la matière et le niveau.");
+
+            <section>
+
+                <input
+                    id="progress-category"
+                    placeholder="Catégorie"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <textarea
+                    id="progress-comment"
+                    placeholder="Détail"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                ></textarea>
+
+
+                <button onclick="saveProgress()">
+                    Enregistrer
+                </button>
+
+
+                <button onclick="showProgress()">
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveProgress() {
+
+    const category =
+        document
+            .getElementById("progress-category")
+            .value
+            .trim();
+
+    const comment =
+        document
+            .getElementById("progress-comment")
+            .value
+            .trim();
+
+    if (!category) {
+
+        alert(
+            "La catégorie est obligatoire."
+        );
+
         return;
     }
 
-    try {
-        const { error } = await supabaseClient
+    const { error } =
+        await supabaseClient
             .from("Progress")
-            .insert(record);
+            .insert({
+                student_id: currentStudent.id,
+                category,
+                comment
+            });
 
-        if (error) throw error;
+    if (error) {
 
-        showProgress();
+        alert(error.message);
 
-    } catch (error) {
-        console.error("Erreur enregistrement progression :", error);
-        alert("Impossible d'enregistrer la progression. Vérifiez la structure de la table Progress.");
+        return;
     }
+
+    showProgress();
+}
+
+
+async function editProgress(id) {
+
+    const { data: item, error } =
+        await supabaseClient
+            .from("Progress")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Modifier la progression
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <input
+                    id="edit-progress-category"
+                    value="${escapeHTML(
+                        item.category || ""
+                    )}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <textarea
+                    id="edit-progress-comment"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                >${escapeHTML(
+                    item.comment || ""
+                )}</textarea>
+
+
+                <button
+                    onclick="
+                        saveEditedProgress('${id}')
+                    "
+                >
+                    Enregistrer
+                </button>
+
+
+                <button
+                    onclick="showProgress()"
+                >
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveEditedProgress(id) {
+
+    const category =
+        document
+            .getElementById("edit-progress-category")
+            .value
+            .trim();
+
+    const comment =
+        document
+            .getElementById("edit-progress-comment")
+            .value
+            .trim();
+
+    const { error } =
+        await supabaseClient
+            .from("Progress")
+            .update({
+                category,
+                comment
+            })
+            .eq("id", id);
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showProgress();
 }
 
 
 async function deleteProgress(id) {
-    if (!currentStudent) return;
-    if (!confirm("Supprimer cette progression ?")) return;
 
-    try {
-        const { error } = await supabaseClient
+    if (
+        !confirm(
+            "Supprimer cette progression ?"
+        )
+    ) {
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
             .from("Progress")
             .delete()
-            .eq("id", Number(id))
-            .eq("student_id", currentStudent.id);
+            .eq("id", id);
 
-        if (error) throw error;
+    if (error) {
 
-        showProgress();
+        alert(error.message);
 
-    } catch (error) {
-        console.error("Erreur suppression progression :", error);
-        alert("Impossible de supprimer cette progression.");
+        return;
     }
+
+    showProgress();
 }
 
 
-// ============================================
-// PARTIE 4 — DIFFICULTÉS
-// ============================================
+/* =========================
+   DIFFICULTÉS
+========================= */
 
 async function showDifficulties() {
-    if (!currentStudent) {
-        showDashboard();
+
+    const { data: difficulties, error } =
+        await supabaseClient
+            .from("Difficulties")
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .order("id");
+
+    if (error) {
+
+        alert(error.message);
+
         return;
     }
 
-    const studentId = currentStudent.id;
+    app().innerHTML = `
+        <div class="dashboard">
 
-    app.innerHTML = `
-        <div class="page-container">
-            <button class="btn btn-secondary" onclick="renderStudentPage()">
-                ← Retour à la fiche
-            </button>
+            <div class="topbar">
 
-            <h1>Difficultés — ${escapeHTML(currentStudent.name || "")}</h1>
+                <div>
 
-            <form id="difficulty-form">
-                <label for="difficulty-subject">Matière</label>
-                <input id="difficulty-subject" name="subject" required>
+                    <h1>
+                        Difficultés
+                    </h1>
 
-                <label for="difficulty-description">Difficulté constatée</label>
-                <textarea id="difficulty-description" name="description"
-                    rows="4" required></textarea>
+                    <p>
+                        ${escapeHTML(currentStudent.name)}
+                    </p>
 
-                <button class="btn btn-primary" type="submit">
-                    Ajouter
+                </div>
+
+
+                <button onclick="renderStudentPage()">
+                    Retour
                 </button>
-            </form>
 
-            <div id="difficulties-list">Chargement...</div>
+            </div>
+
+
+            <div class="section-title">
+
+                <h2 class="page-title">
+                    Points à travailler
+                </h2>
+
+
+                <button onclick="addDifficulty()">
+                    + Ajouter
+                </button>
+
+            </div>
+
+
+            ${
+                difficulties && difficulties.length
+
+                    ? difficulties.map(item => `
+                        <section
+                            style="
+                                text-align:left;
+                            "
+                        >
+
+                            <h2
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                ${escapeHTML(
+                                    item.title || ""
+                                )}
+                            </h2>
+
+
+                            <p
+                                style="
+                                    white-space:pre-wrap;
+                                    text-align:left !important;
+                                    direction:ltr;
+                                    text-indent:0;
+                                "
+                            >${escapeHTML(
+                                item.detail || ""
+                            )}</p>
+
+
+                            <div
+                                style="
+                                    margin-top:15px;
+                                    text-align:left;
+                                "
+                            >
+
+                                <button
+                                    onclick="
+                                        editDifficulty(
+                                            '${item.id}'
+                                        )
+                                    "
+                                >
+                                    Modifier
+                                </button>
+
+
+                                <button
+                                    onclick="
+                                        deleteDifficulty(
+                                            '${item.id}'
+                                        )
+                                    "
+                                >
+                                    Supprimer
+                                </button>
+
+                            </div>
+
+                        </section>
+                    `).join("")
+
+                    : `
+                        <section>
+
+                            <p
+                                style="
+                                    text-align:left;
+                                "
+                            >
+                                Aucune difficulté enregistrée.
+                            </p>
+
+                        </section>
+                    `
+            }
+
         </div>
     `;
-
-    document.getElementById("difficulty-form")
-        .addEventListener("submit", saveDifficulty);
-
-    try {
-        const { data, error } = await supabaseClient
-            .from("Difficulties")
-            .select("*")
-            .eq("student_id", studentId)
-            .order("id", { ascending: false });
-
-        if (error) throw error;
-
-        if (!currentStudent || Number(currentStudent.id) !== Number(studentId)) {
-            return;
-        }
-
-        const list = document.getElementById("difficulties-list");
-        if (!list) return;
-
-        list.innerHTML = !data || data.length === 0
-            ? "<p>Aucune difficulté enregistrée.</p>"
-            : data.map(item => `
-                <article class="difficulty-card">
-                    <h3>${escapeHTML(item.subject || "Matière")}</h3>
-                    <p>${escapeHTML(item.description || "")}</p>
-                    <button class="btn btn-danger"
-                        onclick="deleteDifficulty(${Number(item.id)})">
-                        Supprimer
-                    </button>
-                </article>
-            `).join("");
-
-    } catch (error) {
-        console.error("Erreur chargement difficultés :", error);
-        const list = document.getElementById("difficulties-list");
-        if (list) list.textContent = "Impossible de charger les difficultés.";
-    }
 }
 
 
-async function saveDifficulty(event) {
-    event.preventDefault();
+function addDifficulty() {
 
-    if (!currentStudent) return;
+    app().innerHTML = `
+        <div class="dashboard">
 
-    const form = document.getElementById("difficulty-form");
-    if (!form) return;
+            <div class="topbar">
 
-    const formData = new FormData(form);
+                <h1>
+                    Ajouter une difficulté
+                </h1>
 
-    const record = {
-        student_id: currentStudent.id,
-        subject: String(formData.get("subject") || "").trim(),
-        description: String(formData.get("description") || "").trim()
-    };
+            </div>
 
-    if (!record.subject || !record.description) {
-        alert("Veuillez remplir tous les champs.");
+
+            <section>
+
+                <input
+                    id="difficulty-title"
+                    placeholder="Titre"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <textarea
+                    id="difficulty-detail"
+                    placeholder="Détail"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                ></textarea>
+
+
+                <button onclick="saveDifficulty()">
+                    Enregistrer
+                </button>
+
+
+                <button onclick="showDifficulties()">
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveDifficulty() {
+
+    const title =
+        document
+            .getElementById("difficulty-title")
+            .value
+            .trim();
+
+    const detail =
+        document
+            .getElementById("difficulty-detail")
+            .value
+            .trim();
+
+    if (!title) {
+
+        alert(
+            "Le titre est obligatoire."
+        );
+
         return;
     }
 
-    try {
-        const { error } = await supabaseClient
+    const { error } =
+        await supabaseClient
             .from("Difficulties")
-            .insert(record);
+            .insert({
+                student_id: currentStudent.id,
+                title,
+                detail
+            });
 
-        if (error) throw error;
+    if (error) {
 
-        showDifficulties();
+        alert(error.message);
 
-    } catch (error) {
-        console.error("Erreur enregistrement difficulté :", error);
-        alert("Impossible d'enregistrer la difficulté. Vérifiez la structure de la table Difficulties.");
+        return;
     }
+
+    showDifficulties();
+}
+
+
+async function editDifficulty(id) {
+
+    const { data: item, error } =
+        await supabaseClient
+            .from("Difficulties")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+
+                <h1>
+                    Modifier la difficulté
+                </h1>
+
+            </div>
+
+
+            <section>
+
+                <input
+                    id="edit-difficulty-title"
+                    value="${escapeHTML(
+                        item.title || ""
+                    )}"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left;
+                    "
+                >
+
+
+                <textarea
+                    id="edit-difficulty-detail"
+                    rows="6"
+                    style="
+                        width:100%;
+                        padding:12px;
+                        margin-bottom:15px;
+                        text-align:left !important;
+                        direction:ltr;
+                    "
+                >${escapeHTML(
+                    item.detail || ""
+                )}</textarea>
+
+
+                <button
+                    onclick="
+                        saveEditedDifficulty('${id}')
+                    "
+                >
+                    Enregistrer
+                </button>
+
+
+                <button
+                    onclick="showDifficulties()"
+                >
+                    Annuler
+                </button>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+async function saveEditedDifficulty(id) {
+
+    const title =
+        document
+            .getElementById("edit-difficulty-title")
+            .value
+            .trim();
+
+    const detail =
+        document
+            .getElementById("edit-difficulty-detail")
+            .value
+            .trim();
+
+    const { error } =
+        await supabaseClient
+            .from("Difficulties")
+            .update({
+                title,
+                detail
+            })
+            .eq("id", id);
+
+    if (error) {
+
+        alert(error.message);
+
+        return;
+    }
+
+    showDifficulties();
 }
 
 
 async function deleteDifficulty(id) {
-    if (!currentStudent) return;
-    if (!confirm("Supprimer cette difficulté ?")) return;
 
-    try {
-        const { error } = await supabaseClient
+    if (
+        !confirm(
+            "Supprimer cette difficulté ?"
+        )
+    ) {
+        return;
+    }
+
+    const { error } =
+        await supabaseClient
             .from("Difficulties")
             .delete()
-            .eq("id", Number(id))
-            .eq("student_id", currentStudent.id);
+            .eq("id", id);
 
-        if (error) throw error;
+    if (error) {
 
-        showDifficulties();
+        alert(error.message);
 
-    } catch (error) {
-        console.error("Erreur suppression difficulté :", error);
-        alert("Impossible de supprimer cette difficulté.");
+        return;
+    }
+
+    showDifficulties();
+}
+/* =========================
+   DÉCONNEXION
+========================= */
+
+async function logout() {
+
+    await supabaseClient.auth.signOut();
+
+    currentStudent = null;
+
+    showHome();
+}
+
+
+/* =========================
+   DÉMARRAGE
+========================= */
+
+async function startApp() {
+
+    const {
+        data: { session }
+    } = await supabaseClient.auth.getSession();
+
+
+    if (!session) {
+
+        showHome();
+
+        return;
+    }
+
+
+    const { data: profile } =
+        await supabaseClient
+            .from("profiles")
+            .select("role")
+            .eq("id", session.user.id)
+            .single();
+
+
+    if (
+        profile &&
+        profile.role === "teacher"
+    ) {
+
+        showDashboard();
+
+    } else {
+
+        await supabaseClient.auth.signOut();
+
+        showHome();
     }
 }
+
+
+startApp();
+
+
