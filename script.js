@@ -1304,3 +1304,416 @@ async function startApp() {
 ========================= */
 
 document.addEventListener("DOMContentLoaded", startApp);
+
+/* =========================================
+   CORRECTIONS + DOCUMENTS PDF DES SÉANCES
+   Bucket Supabase privé : documents-pdf
+========================================= */
+
+// Correction de l'affichage des durées.
+function formatDuration(minutes) {
+    if (minutes == null || minutes === "") return "";
+
+    const total = Number(minutes);
+    const hours = Math.floor(total / 60);
+    const remainingMinutes = total % 60;
+
+    if (hours === 0) return `${remainingMinutes} min`;
+    if (remainingMinutes === 0) return `${hours}h`;
+
+    return `${hours}h ${remainingMinutes} min`;
+}
+
+// Correction de la liste des durées.
+function durationOptions(selected = "") {
+    const durations = [];
+
+    for (let minutes = 30; minutes <= 600; minutes += 30) {
+        durations.push(`
+            <option
+                value="${minutes}"
+                ${String(selected) === String(minutes) ? "selected" : ""}
+            >${formatDuration(minutes)}</option>
+        `);
+    }
+
+    return `
+        <option value="">Choisir une durée</option>
+        ${durations.join("")}
+    `;
+}
+
+// Affiche une séance avec sa liste de PDF.
+async function showSession(id) {
+    const { data: session, error } = await supabaseClient
+        .from("Sessions")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    const { data: documents, error: docsError } = await supabaseClient
+        .from("session_documents")
+        .select("*")
+        .eq("session_id", id)
+        .order("created_at", { ascending: false });
+
+    if (docsError) {
+        alert("Erreur de lecture des PDF : " + docsError.message);
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+            <div class="topbar">
+                <div>
+                    <h1>Séance du ${formatDate(session.date)}</h1>
+                    <p>${escapeHTML(session.subject || "")}</p>
+                    <p>${session.duration_minutes != null
+                        ? escapeHTML(formatDuration(session.duration_minutes))
+                        : ""}</p>
+                </div>
+                <button onclick="showSubjectSessions('${encodeURIComponent(session.subject || "")}')">
+                    Retour
+                </button>
+            </div>
+
+            <div class="student-menu">
+                <button onclick="showSessionSummary('${session.id}')">
+                    Résumé de la séance
+                </button>
+                <button onclick="showSessionConclusion('${session.id}')">
+                    Conclusion
+                </button>
+            </div>
+
+            <section style="text-align:left">
+                <h2>Documents PDF</h2>
+                <p>Tu peux ajouter plusieurs fichiers PDF à cette séance.</p>
+
+                <input
+                    id="session-pdf-files"
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    multiple
+                    style="display:block;width:100%;margin:15px 0"
+                >
+
+                <button onclick="uploadSessionPDFs('${session.id}')">
+                    Ajouter les PDF sélectionnés
+                </button>
+
+                <div style="margin-top:20px">
+                    ${
+                        documents && documents.length
+                        ? documents.map(doc => `
+                            <div style="
+                                display:flex;
+                                flex-wrap:wrap;
+                                align-items:center;
+                                justify-content:space-between;
+                                gap:10px;
+                                padding:12px 0;
+                                border-bottom:1px solid #dde2e8;
+                            ">
+                                <span>📄 ${escapeHTML(doc.file_name)}</span>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                                    <button onclick="openSessionPDF('${doc.id}')">
+                                        Ouvrir
+                                    </button>
+                                    <button onclick="deleteSessionPDF('${doc.id}')">
+                                        Supprimer
+                                    </button>
+                                </div>
+                            </div>
+                        `).join("")
+                        : "<p>Aucun PDF pour cette séance.</p>"
+                    }
+                </div>
+            </section>
+
+            <section style="margin-top:20px;text-align:left">
+                <button onclick="editSession('${session.id}')">
+                    Modifier la séance
+                </button>
+                <button onclick="deleteSession('${session.id}')">
+                    Supprimer la séance
+                </button>
+            </section>
+        </div>
+    `;
+}
+
+// Téléverse plusieurs PDF dans le bucket privé.
+async function uploadSessionPDFs(sessionId) {
+    const input = document.getElementById("session-pdf-files");
+    const files = Array.from(input.files || []);
+
+    if (!files.length) {
+        alert("Sélectionne au moins un fichier PDF.");
+        return;
+    }
+
+    if (files.some(file =>
+        file.type !== "application/pdf" &&
+        !file.name.toLowerCase().endsWith(".pdf")
+    )) {
+        alert("Sélectionne uniquement des fichiers PDF.");
+        return;
+    }
+
+    const { data: { user }, error: authError } =
+        await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
+        alert("Ta session a expiré. Reconnecte-toi.");
+        return;
+    }
+
+    for (const file of files) {
+        // Le chemin unique évite les collisions entre fichiers.
+        const safeName = file.name
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9._-]/g, "_");
+
+        const filePath =
+            `${user.id}/${sessionId}/${crypto.randomUUID()}-${safeName}`;
+
+        const { error: uploadError } = await supabaseClient.storage
+            .from("documents-pdf")
+            .upload(filePath, file, {
+                contentType: "application/pdf",
+                upsert: false
+            });
+
+        if (uploadError) {
+            alert(`Échec du téléversement de ${file.name} : ${uploadError.message}`);
+            return;
+        }
+
+        const { error: insertError } = await supabaseClient
+            .from("session_documents")
+            .insert({
+                session_id: Number(sessionId),
+                file_name: file.name,
+                file_path: filePath
+            });
+
+        if (insertError) {
+            // Si l'enregistrement échoue, on retire le fichier envoyé.
+            await supabaseClient.storage
+                .from("documents-pdf")
+                .remove([filePath]);
+
+            alert(`Erreur d'enregistrement de ${file.name} : ${insertError.message}`);
+            return;
+        }
+    }
+
+    alert("PDF ajouté(s) avec succès.");
+    await showSession(sessionId);
+}
+
+// Crée une URL temporaire pour ouvrir un PDF privé.
+async function openSessionPDF(documentId) {
+    const { data: doc, error } = await supabaseClient
+        .from("session_documents")
+        .select("*")
+        .eq("id", documentId)
+        .single();
+
+    if (error || !doc) {
+        alert("Impossible de retrouver ce document.");
+        return;
+    }
+
+    const { data, error: urlError } = await supabaseClient.storage
+        .from("documents-pdf")
+        .createSignedUrl(doc.file_path, 300);
+
+    if (urlError || !data?.signedUrl) {
+        alert("Impossible d'ouvrir le PDF : " + (urlError?.message || ""));
+        return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
+// Supprime un PDF du stockage et de la table.
+async function deleteSessionPDF(documentId) {
+    if (!confirm("Supprimer ce PDF ? Cette action est définitive.")) {
+        return;
+    }
+
+    const { data: doc, error } = await supabaseClient
+        .from("session_documents")
+        .select("*")
+        .eq("id", documentId)
+        .single();
+
+    if (error || !doc) {
+        alert("Impossible de retrouver ce document.");
+        return;
+    }
+
+    const { error: storageError } = await supabaseClient.storage
+        .from("documents-pdf")
+        .remove([doc.file_path]);
+
+    if (storageError) {
+        alert("Erreur lors de la suppression du fichier : " + storageError.message);
+        return;
+    }
+
+    const { error: rowError } = await supabaseClient
+        .from("session_documents")
+        .delete()
+        .eq("id", documentId);
+
+    if (rowError) {
+        alert("Le fichier a été supprimé, mais pas sa référence : " + rowError.message);
+        return;
+    }
+
+    alert("PDF supprimé.");
+    await showSession(doc.session_id);
+}
+
+// Page regroupant les PDF des séances de l'élève actuel.
+async function showAllSubjectDocuments() {
+    const { data: sessions, error } = await supabaseClient
+        .from("Sessions")
+        .select("id, subject, date")
+        .eq("student_id", currentStudent.id)
+        .order("date", { ascending: false });
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    if (!sessions || !sessions.length) {
+        app().innerHTML = `
+            <div class="dashboard">
+                <h1>Documents PDF</h1>
+                <p>Aucune séance enregistrée.</p>
+                <button onclick="showSessions()">Retour</button>
+            </div>
+        `;
+        return;
+    }
+
+    const sessionIds = sessions.map(s => s.id);
+
+    const { data: documents, error: docsError } = await supabaseClient
+        .from("session_documents")
+        .select("*")
+        .in("session_id", sessionIds)
+        .order("created_at", { ascending: false });
+
+    if (docsError) {
+        alert(docsError.message);
+        return;
+    }
+
+    const sessionById = Object.fromEntries(
+        sessions.map(s => [String(s.id), s])
+    );
+
+    app().innerHTML = `
+        <div class="dashboard">
+            <div class="topbar">
+                <div>
+                    <h1>Documents PDF</h1>
+                    <p>${escapeHTML(currentStudent.name)}</p>
+                </div>
+                <button onclick="showSessions()">Retour aux séances</button>
+            </div>
+
+            <section style="text-align:left">
+                ${
+                    documents && documents.length
+                    ? documents.map(doc => {
+                        const session = sessionById[String(doc.session_id)];
+                        return `
+                            <div style="
+                                padding:14px 0;
+                                border-bottom:1px solid #dde2e8;
+                            ">
+                                <strong>📄 ${escapeHTML(doc.file_name)}</strong>
+                                <p>
+                                    ${escapeHTML(session?.subject || "")}
+                                    — ${formatDate(session?.date)}
+                                </p>
+                                <button onclick="openSessionPDF('${doc.id}')">
+                                    Ouvrir
+                                </button>
+                                <button onclick="showSession('${doc.session_id}')">
+                                    Voir la séance
+                                </button>
+                            </div>
+                        `;
+                    }).join("")
+                    : "<p>Aucun document PDF pour cet élève.</p>"
+                }
+            </section>
+        </div>
+    `;
+}
+
+// Supprime aussi les fichiers associés avant de supprimer la séance.
+async function deleteSession(id) {
+    if (!confirm("Supprimer cette séance et ses documents PDF ?")) {
+        return;
+    }
+
+    const { data: documents, error: docsError } = await supabaseClient
+        .from("session_documents")
+        .select("id, file_path")
+        .eq("session_id", id);
+
+    if (docsError) {
+        alert("Impossible de charger les PDF : " + docsError.message);
+        return;
+    }
+
+    if (documents && documents.length) {
+        const paths = documents.map(doc => doc.file_path);
+
+        const { error: storageError } = await supabaseClient.storage
+            .from("documents-pdf")
+            .remove(paths);
+
+        if (storageError) {
+            alert("Impossible de supprimer les PDF : " + storageError.message);
+            return;
+        }
+
+        const { error: rowsError } = await supabaseClient
+            .from("session_documents")
+            .delete()
+            .eq("session_id", id);
+
+        if (rowsError) {
+            alert("Impossible de supprimer les références PDF : " + rowsError.message);
+            return;
+        }
+    }
+
+    const { error } = await supabaseClient
+        .from("Sessions")
+        .delete()
+        .eq("id", id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    await showSessions();
+}
