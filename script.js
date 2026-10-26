@@ -2,12 +2,15 @@
 (() => {
   "use strict";
 
-  // ==================================================
+  // ============================================
   // CONFIGURATION SUPABASE
-  // ==================================================
+  // ============================================
 
-  const SUPABASE_URL = "https://hztywwjrjkihivupcmad.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_am_wEiQkh4F-9VhIUC0LFg_zux-_jgu";
+  const SUPABASE_URL =
+    "https://hztywwjrjkihivupcmad.supabase.co";
+
+  const SUPABASE_KEY =
+    "sb_publishable_am_wEiQkh4F-9VhIUC0LFg_zux-_jgu";
 
   const STUDENTS = "Students";
   const LESSONS = "Lessons";
@@ -17,7 +20,7 @@
   const app = document.getElementById("app");
 
   if (!app) {
-    console.error("Élément #app introuvable dans index.html.");
+    console.error("Élément #app introuvable.");
     return;
   }
 
@@ -29,21 +32,21 @@
   let lesson = null;
   let documents = [];
   let search = "";
-  let page = "login";
 
-  // ==================================================
+  // ============================================
   // OUTILS
-  // ==================================================
+  // ============================================
 
-  const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[c]);
+  const esc = value =>
+    String(value ?? "").replace(/[&<>"']/g, character => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[character]);
 
-  function notice(text, error = false) {
+  function notice(message, isError = false) {
     let box = document.getElementById("notice");
 
     if (!box) {
@@ -53,117 +56,164 @@
     }
 
     box.hidden = false;
-    box.textContent = text;
-    box.style.cssText =
-      "padding:12px;margin:12px 0;border-radius:8px;" +
-      "background:" + (error ? "#fee2e2" : "#dcfce7") +
-      ";color:#222;overflow-wrap:anywhere";
+    box.textContent = message;
+    box.style.cssText = `
+      margin: 16px 0;
+      padding: 13px 16px;
+      border-radius: 12px;
+      background: ${isError ? "#fff0f2" : "#e9f9f2"};
+      color: ${isError ? "#b52f49" : "#13775d"};
+      overflow-wrap: anywhere;
+    `;
   }
 
   function fail(context, error) {
     console.error(context, error);
-    notice(context + " : " + (error?.message || String(error)), true);
+    notice(
+      context + " : " + (error?.message || String(error)),
+      true
+    );
   }
 
-  function loading(text = "Chargement...") {
+  function loading(message = "Chargement...") {
     app.innerHTML = `
-      <main style="max-width:600px;margin:50px auto;padding:24px">
+      <main style="max-width:650px;margin:40px auto;padding:24px">
         <h1>NSK Éducation</h1>
-        <p>${esc(text)}</p>
-      </main>`;
+        <p>${esc(message)}</p>
+      </main>
+    `;
   }
 
   function field(name, label, type = "text", required = true) {
     return `
-      <div style="margin:14px 0">
-        <label for="${name}" style="display:block;margin-bottom:6px">
-          ${label}
+      <div class="form-group" style="margin:14px 0">
+        <label for="${esc(name)}"
+          style="display:block;margin-bottom:7px">
+          ${esc(label)}
         </label>
-        <input id="${name}" name="${name}" type="${type}"
+        <input
+          id="${esc(name)}"
+          name="${esc(name)}"
+          type="${esc(type)}"
           ${required ? "required" : ""}
-          style="box-sizing:border-box;width:100%;padding:11px">
-      </div>`;
+          style="box-sizing:border-box;width:100%;padding:12px"
+        >
+      </div>
+    `;
   }
 
-  function btn(action, label, extra = "") {
-    return `<button type="button" data-action="${action}" ${extra}
-      style="padding:10px 14px;margin:4px;cursor:pointer">
-      ${label}
-    </button>`;
+  // CORRECTION : l'identifiant est maintenant un paramètre dédié.
+  // Tous les boutons utilisent la même fonction.
+  function btn(action, label, id = null, extra = "") {
+    const idAttribute = id !== null
+      ? `data-id="${esc(id)}"`
+      : "";
+
+    return `
+      <button
+        type="button"
+        data-action="${esc(action)}"
+        ${idAttribute}
+        ${extra}
+        style="padding:10px 14px;margin:4px;cursor:pointer"
+      >${esc(label)}</button>
+    `;
   }
 
   function shell(content) {
     app.innerHTML = `
-      <header style="padding:18px;background:#17365d;color:white">
-        <h1>NSK Éducation</h1>
-        ${user ? `<p>Connecté : ${esc(user.email || "")}</p>
-          ${btn("logout", "Se déconnecter")}` : ""}
+      <header class="topbar"
+        style="padding:18px;background:#202044;color:white">
+        <h1 style="color:white;margin-top:0">
+          NSK Éducation
+        </h1>
+        ${
+          user
+            ? `
+              <p>Connecté : ${esc(user.email || "")}</p>
+              ${btn("logout", "Se déconnecter")}
+            `
+            : ""
+        }
       </header>
-      <main style="max-width:1000px;margin:auto;padding:20px">
+      <main class="dashboard-content"
+        style="max-width:1100px;margin:auto;padding:24px">
         <div id="notice" hidden></div>
         ${content}
-      </main>`;
+      </main>
+    `;
   }
 
-  // ==================================================
-  // CONNEXION
-  // ==================================================
+  function showNoticeAfterRender(message, isError = false) {
+    notice(message, isError);
+  }
+
+  // ============================================
+  // AUTHENTIFICATION
+  // ============================================
 
   function showLogin(errorText = "") {
-    page = "login";
-
     app.innerHTML = `
-      <main style="max-width:430px;margin:40px auto;padding:24px;
-        border:1px solid #ddd;border-radius:12px">
+      <main class="login-box"
+        style="max-width:440px;margin:40px auto;padding:28px">
         <h1>NSK Éducation</h1>
-        <p>Connecte-toi à ton espace.</p>
+        <p>Connecte-toi à ton espace pédagogique.</p>
         <div id="notice" hidden></div>
 
         <form id="login-form">
           ${field("email", "Adresse e-mail", "email")}
           ${field("password", "Mot de passe", "password")}
-          <button type="submit" style="width:100%;padding:12px">
+          <button type="submit" style="width:100%">
             Se connecter
           </button>
         </form>
 
         <p>${btn("signup-page", "Créer un compte")}</p>
         <p>${btn("reset-page", "Mot de passe oublié ?")}</p>
-      </main>`;
+      </main>
+    `;
 
     if (errorText) notice(errorText, true);
   }
 
   function showSignup() {
-    page = "signup";
-
     app.innerHTML = `
-      <main style="max-width:430px;margin:40px auto;padding:24px;
-        border:1px solid #ddd;border-radius:12px">
+      <main class="login-box"
+        style="max-width:440px;margin:40px auto;padding:28px">
         <h1>Créer un compte</h1>
         <div id="notice" hidden></div>
+
         <form id="signup-form">
           ${field("email", "Adresse e-mail", "email")}
-          ${field("password", "Mot de passe (6 caractères minimum)", "password")}
-          <button type="submit" style="padding:12px">Créer mon compte</button>
+          ${field(
+            "password",
+            "Mot de passe (6 caractères minimum)",
+            "password"
+          )}
+          <button type="submit">Créer mon compte</button>
         </form>
+
         ${btn("login-page", "Retour à la connexion")}
-      </main>`;
+      </main>
+    `;
   }
 
   function showReset() {
-    page = "reset";
-
     app.innerHTML = `
-      <main style="max-width:430px;margin:40px auto;padding:24px">
+      <main class="login-box"
+        style="max-width:440px;margin:40px auto;padding:28px">
         <h1>Mot de passe oublié</h1>
+        <p>Nous t'enverrons un lien de réinitialisation.</p>
         <div id="notice" hidden></div>
+
         <form id="reset-form">
           ${field("email", "Adresse e-mail", "email")}
-          <button type="submit" style="padding:12px">Envoyer le lien</button>
+          <button type="submit">Envoyer le lien</button>
         </form>
+
         ${btn("login-page", "Retour à la connexion")}
-      </main>`;
+      </main>
+    `;
   }
 
   async function login(form) {
@@ -195,7 +245,10 @@
       return;
     }
 
-    const { data, error } = await db.auth.signUp({ email, password });
+    const { data, error } = await db.auth.signUp({
+      email,
+      password
+    });
 
     if (error) {
       fail("Inscription impossible", error);
@@ -206,7 +259,9 @@
       user = data.user;
       await loadStudents();
     } else {
-      showLogin("Compte créé. Vérifie tes e-mails pour confirmer ton adresse, puis connecte-toi.");
+      showLogin(
+        "Compte créé. Vérifie tes e-mails pour confirmer ton adresse."
+      );
     }
   }
 
@@ -217,8 +272,13 @@
       redirectTo: location.origin + location.pathname
     });
 
-    if (error) fail("Envoi du lien impossible", error);
-    else notice("Si cette adresse est enregistrée, un e-mail de réinitialisation sera envoyé.");
+    if (error) {
+      fail("Envoi du lien impossible", error);
+    } else {
+      notice(
+        "Si cette adresse est enregistrée, un e-mail sera envoyé."
+      );
+    }
   }
 
   async function logout() {
@@ -236,15 +296,15 @@
     lesson = null;
     documents = [];
     search = "";
+
     showLogin();
   }
 
-  // ==================================================
+  // ============================================
   // ÉLÈVES
-  // ==================================================
+  // ============================================
 
   async function loadStudents() {
-    page = "loading";
     loading("Chargement des élèves...");
 
     const { data, error } = await db
@@ -253,10 +313,8 @@
       .order("name", { ascending: true });
 
     if (error) {
-      page = "students";
-      students = [];
       renderStudents();
-      notice("Chargement des élèves impossible. Vérifie les règles d'accès de la table Students dans Supabase. " + error.message, true);
+      notice("Chargement des élèves impossible : " + error.message, true);
       return;
     }
 
@@ -265,45 +323,51 @@
     lesson = null;
     lessons = [];
     documents = [];
-    page = "students";
+
     renderStudents();
   }
 
   function renderStudents() {
-    page = "students";
-
     const filtered = students.filter(s =>
       `${s.name || ""} ${s.class || ""}`
-        .toLowerCase().includes(search.toLowerCase())
+        .toLowerCase()
+        .includes(search.toLowerCase())
     );
 
     shell(`
-      <h2>Mes élèves</h2>
+      <div class="page-header">
+        <h2 class="page-title">Mes élèves</h2>
+      </div>
 
-      <section style="padding:16px;border:1px solid #ddd;border-radius:10px">
+      <section class="card">
         <h3>Ajouter un élève</h3>
         <form id="student-form">
           ${field("name", "Nom de l'élève")}
           ${field("class", "Classe")}
-          <button type="submit" style="padding:11px">Ajouter l'élève</button>
+          <button type="submit">Ajouter l'élève</button>
         </form>
       </section>
 
-      <div style="margin:20px 0">
+      <section class="card">
         <label for="student-search">Rechercher un élève</label>
-        <input id="student-search" value="${esc(search)}"
-          placeholder="Nom ou classe" style="padding:10px;width:100%;box-sizing:border-box">
-      </div>
+        <input
+          id="student-search"
+          value="${esc(search)}"
+          placeholder="Nom ou classe"
+        >
+      </section>
 
-      <section id="students-list"
-        style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+      <section id="students-list" class="students-grid"
+        style="display:grid;grid-template-columns:
+        repeat(auto-fit,minmax(230px,1fr));gap:16px">
         ${filtered.map(s => `
-          <article style="padding:16px;border:1px solid #ddd;border-radius:10px">
+          <article class="student-card"
+            style="padding:20px;border:1px solid #e8e5f2;
+            border-radius:16px;background:white">
             <h3>${esc(s.name)}</h3>
             <p>Classe : ${esc(s.class || "Non renseignée")}</p>
-            ${btn("open-student", "Ouvrir l'espace", "", `data-id="${esc(s.id)}"`)}
-            <button type="button" data-action="delete-student"
-              data-id="${esc(s.id)}" style="padding:10px">Supprimer</button>
+            ${btn("open-student", "Ouvrir l'espace", s.id)}
+            ${btn("delete-student", "Supprimer", s.id)}
           </article>
         `).join("") || "<p>Aucun élève trouvé.</p>"}
       </section>
@@ -336,9 +400,18 @@
 
   async function deleteStudent(id) {
     const s = students.find(item => String(item.id) === String(id));
-    if (!s || !confirm(`Supprimer l'élève ${s.name} ?`)) return;
 
-    const { error } = await db.from(STUDENTS).delete().eq("id", id);
+    if (!s) {
+      notice("Élève introuvable.", true);
+      return;
+    }
+
+    if (!confirm(`Supprimer l'élève ${s.name} ?`)) return;
+
+    const { error } = await db
+      .from(STUDENTS)
+      .delete()
+      .eq("id", id);
 
     if (error) {
       fail("Suppression impossible", error);
@@ -350,11 +423,17 @@
   }
 
   async function openStudent(id) {
-    student = students.find(s => String(s.id) === String(id));
-    if (!student) return;
+    const selectedStudent = students.find(
+      s => String(s.id) === String(id)
+    );
 
-    page = "loading";
-    loading("Chargement des leçons...");
+    if (!selectedStudent) {
+      notice("Élève introuvable. Réactualise la page.", true);
+      return;
+    }
+
+    student = selectedStudent;
+    loading("Chargement des séances...");
 
     const { data, error } = await db
       .from(LESSONS)
@@ -365,7 +444,10 @@
     if (error) {
       lessons = [];
       renderStudent();
-      notice("Chargement des leçons impossible. Vérifie la colonne student_id de Lessons et les règles d'accès. " + error.message, true);
+      notice(
+        "Chargement des séances impossible : " + error.message,
+        true
+      );
       return;
     }
 
@@ -373,62 +455,78 @@
     renderStudent();
   }
 
-  // ==================================================
-  // LEÇONS
-  // ==================================================
+  // ============================================
+  // SÉANCES
+  // ============================================
 
   function renderStudent() {
-    if (!student) return renderStudents();
-
-    page = "student";
+    if (!student) {
+      renderStudents();
+      return;
+    }
 
     shell(`
       ${btn("back-students", "← Tous les élèves")}
-      <h2>${esc(student.name)}</h2>
+
+      <div class="page-header">
+        <h2 class="page-title">${esc(student.name)}</h2>
+      </div>
+
       <p>Classe : ${esc(student.class || "Non renseignée")}</p>
 
-      <section style="padding:16px;border:1px solid #ddd;border-radius:10px">
-        <h3>Ajouter une leçon</h3>
+      <section class="card">
+        <h3>Ajouter une séance</h3>
         <form id="lesson-form">
           ${field("title", "Titre")}
           ${field("subject", "Matière")}
           ${field("lesson_date", "Date", "date")}
           ${field("duration_minutes", "Durée en minutes", "number")}
-          <div style="margin:14px 0">
+
+          <div class="form-group">
             <label for="content">Contenu</label>
             <textarea id="content" name="content" rows="5"
               style="width:100%;box-sizing:border-box"></textarea>
           </div>
-          <div style="margin:14px 0">
+
+          <div class="form-group">
             <label for="conclusion">Conclusion</label>
             <textarea id="conclusion" name="conclusion" rows="3"
               style="width:100%;box-sizing:border-box"></textarea>
           </div>
-          <button type="submit" style="padding:11px">Enregistrer la leçon</button>
+
+          <button type="submit">Enregistrer la séance</button>
         </form>
       </section>
 
-      <h3>Mes leçons</h3>
-      <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
-        ${lessons.map(l => `
-          <article style="padding:16px;border:1px solid #ddd;border-radius:10px">
-            <h3>${esc(l.title)}</h3>
-            <p>Matière : ${esc(l.subject || "Non renseignée")}</p>
-            <p>Date : ${esc(l.lesson_date || "Non renseignée")}</p>
-            <p>${esc((l.content || "").slice(0,150))}</p>
-            ${btn("open-lesson", "Voir la leçon", "", `data-id="${esc(l.id)}"`)}
-            <button type="button" data-action="delete-lesson"
-              data-id="${esc(l.id)}">Supprimer</button>
-          </article>
-        `).join("") || "<p>Aucune leçon enregistrée.</p>"}
+      <section class="card">
+        <h3>Mes séances</h3>
+        <div style="display:grid;grid-template-columns:
+          repeat(auto-fit,minmax(230px,1fr));gap:14px">
+          ${lessons.map(l => `
+            <article class="lesson-card"
+              style="padding:18px;border:1px solid #e8e5f2;
+              border-radius:15px">
+              <h3>${esc(l.title)}</h3>
+              <p>Matière : ${esc(l.subject || "Non renseignée")}</p>
+              <p>Date : ${esc(l.lesson_date || "Non renseignée")}</p>
+              <p>${esc((l.content || "").slice(0, 150))}</p>
+              ${btn("open-lesson", "Voir la séance", l.id)}
+              ${btn("delete-lesson", "Supprimer", l.id)}
+            </article>
+          `).join("") || "<p>Aucune séance enregistrée.</p>"}
+        </div>
       </section>
     `);
   }
 
   async function addLesson(form) {
-    if (!student) return;
+    if (!student) {
+      notice("Sélectionne d'abord un élève.", true);
+      return;
+    }
 
     const title = form.elements.title.value.trim();
+
     if (!title) {
       notice("Le titre est obligatoire.", true);
       return;
@@ -448,32 +546,53 @@
     const { error } = await db.from(LESSONS).insert(record);
 
     if (error) {
-      fail("Enregistrement de la leçon impossible", error);
+      fail("Enregistrement de la séance impossible", error);
       return;
     }
 
     await openStudent(student.id);
-    notice("Leçon enregistrée.");
+    notice("Séance enregistrée.");
   }
 
   async function deleteLesson(id) {
-    const l = lessons.find(item => String(item.id) === String(id));
-    if (!l || !confirm(`Supprimer la leçon « ${l.title} » ?`)) return;
+    const selectedLesson = lessons.find(
+      item => String(item.id) === String(id)
+    );
 
-    const { error } = await db.from(LESSONS).delete().eq("id", id);
+    if (!selectedLesson) {
+      notice("Séance introuvable.", true);
+      return;
+    }
+
+    if (!confirm(`Supprimer la séance « ${selectedLesson.title} » ?`)) {
+      return;
+    }
+
+    const { error } = await db
+      .from(LESSONS)
+      .delete()
+      .eq("id", id);
 
     if (error) {
-      fail("Suppression de la leçon impossible", error);
+      fail("Suppression de la séance impossible", error);
       return;
     }
 
     await openStudent(student.id);
-    notice("Leçon supprimée.");
+    notice("Séance supprimée.");
   }
 
   async function openLesson(id) {
-    lesson = lessons.find(l => String(l.id) === String(id));
-    if (!lesson) return;
+    const selectedLesson = lessons.find(
+      item => String(item.id) === String(id)
+    );
+
+    if (!selectedLesson) {
+      notice("Séance introuvable.", true);
+      return;
+    }
+
+    lesson = selectedLesson;
 
     const { data, error } = await db
       .from(DOCUMENTS)
@@ -491,63 +610,98 @@
   }
 
   function renderLesson() {
-    if (!lesson) return renderStudent();
-
-    page = "lesson";
+    if (!lesson) {
+      renderStudent();
+      return;
+    }
 
     shell(`
-      ${btn("back-student", "← Retour aux leçons")}
-      <h2>${esc(lesson.title)}</h2>
-      <p>Matière : ${esc(lesson.subject || "Non renseignée")}</p>
-      <p>Date : ${esc(lesson.lesson_date || "Non renseignée")}</p>
-      <h3>Contenu</h3>
-      <p style="white-space:pre-wrap">${esc(lesson.content || "Aucun contenu.")}</p>
-      <h3>Conclusion</h3>
-      <p style="white-space:pre-wrap">${esc(lesson.conclusion || "Aucune conclusion.")}</p>
+      ${btn("back-student", "← Retour aux séances")}
 
-      <section style="padding:16px;border:1px solid #ddd;border-radius:10px">
+      <section class="card">
+        <h2>${esc(lesson.title)}</h2>
+        <p>Matière : ${esc(lesson.subject || "Non renseignée")}</p>
+        <p>Date : ${esc(lesson.lesson_date || "Non renseignée")}</p>
+
+        <h3>Contenu</h3>
+        <p style="white-space:pre-wrap">${esc(
+          lesson.content || "Aucun contenu."
+        )}</p>
+
+        <h3>Conclusion</h3>
+        <p style="white-space:pre-wrap">${esc(
+          lesson.conclusion || "Aucune conclusion."
+        )}</p>
+      </section>
+
+      <section class="card">
         <h3>Documents PDF</h3>
         <form id="pdf-form">
-          <input type="file" name="pdf" accept=".pdf,application/pdf" required>
-          <button type="submit" style="padding:10px">Envoyer le PDF</button>
+          <div class="form-group">
+            <label for="pdf">Choisir un fichier PDF</label>
+            <input
+              id="pdf"
+              type="file"
+              name="pdf"
+              accept=".pdf,application/pdf"
+              required
+            >
+          </div>
+          <button type="submit">Envoyer le PDF</button>
         </form>
 
         <ul>
           ${documents.map(d => `
-            <li style="margin:12px 0">
+            <li style="margin:14px 0;overflow-wrap:anywhere">
               ${esc(d.file_name || "Document PDF")}
-              ${btn("open-pdf", "Ouvrir", "", `data-id="${esc(d.id)}"`)}
-              ${btn("delete-pdf", "Supprimer", "", `data-id="${esc(d.id)}"`)}
+              ${btn("open-pdf", "Ouvrir", d.id)}
+              ${btn("delete-pdf", "Supprimer", d.id)}
             </li>
-          `).join("") || "<li>Aucun document.</li>"}
+          `).join("") || "<li>Aucun document PDF.</li>"}
         </ul>
       </section>
     `);
   }
 
-  // ==================================================
-  // FICHIERS PDF
-  // ==================================================
+  // ============================================
+  // DOCUMENTS PDF
+  // ============================================
 
   async function uploadPDF(form) {
-    const file = form.elements.pdf.files?.[0];
-    if (!file) return notice("Choisis un PDF.", true);
+    if (!student || !lesson) {
+      notice("Aucune séance sélectionnée.", true);
+      return;
+    }
 
-    if (file.type !== "application/pdf" &&
-        !file.name.toLowerCase().endsWith(".pdf")) {
-      return notice("Seuls les fichiers PDF sont acceptés.", true);
+    const file = form.elements.pdf.files?.[0];
+
+    if (!file) {
+      notice("Choisis un PDF.", true);
+      return;
+    }
+
+    if (
+      file.type !== "application/pdf" &&
+      !file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      notice("Seuls les fichiers PDF sont acceptés.", true);
+      return;
     }
 
     if (file.size > 15 * 1024 * 1024) {
-      return notice("Le fichier ne doit pas dépasser 15 Mo.", true);
+      notice("Le fichier ne doit pas dépasser 15 Mo.", true);
+      return;
     }
 
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `${student.id}/${lesson.id}/${Date.now()}_${safeName}`;
+    const path =
+      `${student.id}/${lesson.id}/${Date.now()}_${safeName}`;
 
     const { error: uploadError } = await db.storage
       .from(BUCKET)
-      .upload(path, file, { contentType: "application/pdf" });
+      .upload(path, file, {
+        contentType: "application/pdf"
+      });
 
     if (uploadError) {
       fail("Envoi du PDF impossible", uploadError);
@@ -573,8 +727,14 @@
   }
 
   async function openPDF(id) {
-    const doc = documents.find(d => String(d.id) === String(id));
-    if (!doc?.file_path) return notice("Chemin du PDF introuvable.", true);
+    const doc = documents.find(
+      item => String(item.id) === String(id)
+    );
+
+    if (!doc?.file_path) {
+      notice("Chemin du PDF introuvable.", true);
+      return;
+    }
 
     const { data, error } = await db.storage
       .from(BUCKET)
@@ -591,8 +751,18 @@
   }
 
   async function deletePDF(id) {
-    const doc = documents.find(d => String(d.id) === String(id));
-    if (!doc || !confirm(`Supprimer ${doc.file_name} ?`)) return;
+    const doc = documents.find(
+      item => String(item.id) === String(id)
+    );
+
+    if (!doc) {
+      notice("Document introuvable.", true);
+      return;
+    }
+
+    if (!confirm(`Supprimer le document « ${doc.file_name} » ?`)) {
+      return;
+    }
 
     const { error: storageError } = await db.storage
       .from(BUCKET)
@@ -603,7 +773,10 @@
       return;
     }
 
-    const { error } = await db.from(DOCUMENTS).delete().eq("id", id);
+    const { error } = await db
+      .from(DOCUMENTS)
+      .delete()
+      .eq("id", id);
 
     if (error) {
       fail("Suppression de l'enregistrement impossible", error);
@@ -614,32 +787,41 @@
     notice("PDF supprimé.");
   }
 
-  // ==================================================
-  // ÉVÉNEMENTS : FORMULAIRES
-  // ==================================================
+  // ============================================
+  // ÉVÉNEMENTS DES FORMULAIRES
+  // ============================================
 
   app.addEventListener("submit", async event => {
+    const form = event.target;
+
+    if (!(form instanceof HTMLFormElement)) return;
+
     event.preventDefault();
 
     try {
-      switch (event.target.id) {
+      switch (form.id) {
         case "login-form":
-          await login(event.target);
+          await login(form);
           break;
+
         case "signup-form":
-          await signup(event.target);
+          await signup(form);
           break;
+
         case "reset-form":
-          await resetPassword(event.target);
+          await resetPassword(form);
           break;
+
         case "student-form":
-          await addStudent(event.target);
+          await addStudent(form);
           break;
+
         case "lesson-form":
-          await addLesson(event.target);
+          await addLesson(form);
           break;
+
         case "pdf-form":
-          await uploadPDF(event.target);
+          await uploadPDF(form);
           break;
       }
     } catch (error) {
@@ -647,37 +829,48 @@
     }
   });
 
-  // ==================================================
-  // ÉVÉNEMENTS : BOUTONS
-  // ==================================================
+  // ============================================
+  // ÉVÉNEMENTS DES BOUTONS
+  // ============================================
 
   app.addEventListener("click", async event => {
-    const el = event.target.closest("[data-action]");
-    if (!el) return;
+    const target = event.target;
 
-    const action = el.dataset.action;
-    const id = el.dataset.id;
+    if (!(target instanceof Element)) return;
+
+    const button = target.closest("[data-action]");
+
+    if (!button || !app.contains(button)) return;
+
+    const action = button.dataset.action;
+    const id = button.dataset.id;
 
     try {
       switch (action) {
         case "signup-page":
           showSignup();
           break;
+
         case "reset-page":
           showReset();
           break;
+
         case "login-page":
           showLogin();
           break;
+
         case "logout":
           await logout();
           break;
+
         case "open-student":
           await openStudent(id);
           break;
+
         case "delete-student":
           await deleteStudent(id);
           break;
+
         case "back-students":
           student = null;
           lesson = null;
@@ -685,20 +878,25 @@
           documents = [];
           renderStudents();
           break;
+
         case "open-lesson":
           await openLesson(id);
           break;
+
         case "delete-lesson":
           await deleteLesson(id);
           break;
+
         case "back-student":
           lesson = null;
           documents = [];
           renderStudent();
           break;
+
         case "open-pdf":
           await openPDF(id);
           break;
+
         case "delete-pdf":
           await deletePDF(id);
           break;
@@ -708,66 +906,84 @@
     }
   });
 
-  // ==================================================
-  // RECHERCHE D'ÉLÈVES
-  // ==================================================
+  // ============================================
+  // RECHERCHE DES ÉLÈVES
+  // ============================================
 
   app.addEventListener("input", event => {
-    if (event.target.id !== "student-search") return;
+    const target = event.target;
 
-    const position = event.target.selectionStart;
-    search = event.target.value;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (target.id !== "student-search") return;
+
+    const position = target.selectionStart;
+    search = target.value;
 
     const filtered = students.filter(s =>
       `${s.name || ""} ${s.class || ""}`
-        .toLowerCase().includes(search.toLowerCase())
+        .toLowerCase()
+        .includes(search.toLowerCase())
     );
 
     const list = document.getElementById("students-list");
+
     if (!list) return;
 
     list.innerHTML = filtered.map(s => `
-      <article style="padding:16px;border:1px solid #ddd;border-radius:10px">
+      <article class="student-card"
+        style="padding:20px;border:1px solid #e8e5f2;
+        border-radius:16px;background:white">
         <h3>${esc(s.name)}</h3>
         <p>Classe : ${esc(s.class || "Non renseignée")}</p>
-        ${btn("open-student", "Ouvrir l'espace", "", `data-id="${esc(s.id)}"`)}
-        <button type="button" data-action="delete-student"
-          data-id="${esc(s.id)}">Supprimer</button>
+        ${btn("open-student", "Ouvrir l'espace", s.id)}
+        ${btn("delete-student", "Supprimer", s.id)}
       </article>
     `).join("") || "<p>Aucun élève trouvé.</p>";
 
-    event.target.setSelectionRange(position, position);
+    if (position !== null) {
+      target.setSelectionRange(position, position);
+    }
   });
 
-  // ==================================================
-  // DÉMARRAGE ET SESSION
-  // ==================================================
+  // ============================================
+  // DÉMARRAGE
+  // ============================================
 
   async function start() {
     loading("Initialisation de NSK Éducation...");
 
-    if (!window.supabase ||
-        typeof window.supabase.createClient !== "function") {
+    if (
+      !window.supabase ||
+      typeof window.supabase.createClient !== "function"
+    ) {
       app.innerHTML = `
         <main style="padding:24px">
           <h1>NSK Éducation</h1>
           <p>La bibliothèque Supabase ne s'est pas chargée.</p>
-          <p>Vérifie le chargement du script Supabase dans index.html.</p>
-          <button onclick="location.reload()">Réessayer</button>
-        </main>`;
+          <p>Vérifie le script Supabase dans index.html.</p>
+          <button type="button" onclick="location.reload()">
+            Réessayer
+          </button>
+        </main>
+      `;
       return;
     }
 
     try {
-      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      db = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
 
       const result = await Promise.race([
         db.auth.getSession(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(
-            "Délai dépassé. Vérifie ta connexion Internet."
-          )), 10000)
-        )
+        new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(
+              "Délai dépassé. Vérifie ta connexion Internet."
+            ));
+          }, 10000);
+        })
       ]);
 
       if (result.error) throw result.error;
@@ -788,6 +1004,7 @@
           students = [];
           lessons = [];
           documents = [];
+          search = "";
           showLogin();
         }
       });
@@ -798,9 +1015,14 @@
         <main style="max-width:650px;margin:40px auto;padding:24px">
           <h1>NSK Éducation</h1>
           <h2>Impossible de charger ton espace</h2>
-          <p style="overflow-wrap:anywhere">${esc(error.message || error)}</p>
-          <button onclick="location.reload()">Réessayer</button>
-        </main>`;
+          <p style="overflow-wrap:anywhere">
+            ${esc(error.message || error)}
+          </p>
+          <button type="button" onclick="location.reload()">
+            Réessayer
+          </button>
+        </main>
+      `;
     }
   }
 
