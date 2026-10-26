@@ -43,7 +43,7 @@ function formatDuration(minutes) {
     if (hours === 0) return `${remainingMinutes} min`;
     if (remainingMinutes === 0) return `${hours}h`;
 
-    return `${hours}h${remainingMinutes}`;
+    return `hoursh{remainingMinutes}`;
 }
 
 function durationOptions(selected = "") {
@@ -56,7 +56,7 @@ function durationOptions(selected = "") {
     return `
         <option value="">Choisir une durée</option>
         ${durations.map(([minutes, label]) => `
-            <option value="${minutes}" ${String(selected) === String(minutes) ? "selected" : ""}>${label}</option>
+            <option value="${minutes}" String(selected)===String(minutes)?"selected":"">{label}</option>
         `).join("")}
     `;
 }
@@ -219,6 +219,8 @@ async function forgotPassword() {
         "Un e-mail de réinitialisation a été envoyé."
     );
 }
+
+
 /* =========================
    TABLEAU DE BORD
 ========================= */
@@ -707,6 +709,8 @@ function renderStudentPage() {
         </div>
     `;
 }
+
+
 /* =========================
    SÉANCES
 ========================= */
@@ -767,14 +771,13 @@ async function showSessions() {
                 </h2>
 
 
-                
-<button onclick="addSession()">
-    + Ajouter une séance
-</button>
+                <button onclick="addSession()">
+                    + Ajouter une séance
+                </button>
 
-<button onclick="showAllSubjectDocuments()">
-    📚 Documents PDF
-</button>
+                <button onclick="showAllSubjectDocuments()">
+                    📚 Documents PDF
+                </button>
 
 
             </div>
@@ -848,6 +851,7 @@ async function showSessions() {
                                             subjectSessions.length
 
                                                 ? subjectSessions.map(
+
                                                     session => `
                                                         <div
                                                             style="
@@ -1162,7 +1166,7 @@ async function showSession(id) {
                 <div>
 
                     <h1>
-                        Séance du ${formatDate(session.date)}${session.duration_minutes != null ? ` — ${formatDuration(session.duration_minutes)}` : ""}
+                        Séance du formatDate(session.date){session.duration_minutes != null ? ` — ${formatDuration(session.duration_minutes)}` : ""}
                     </h1>
 
                     <p>
@@ -1207,6 +1211,77 @@ async function showSession(id) {
             </div>
 
 
+            <!-- SECTION PDF AJOUTÉE -->
+
+            <section
+                style="
+                    margin-top:20px;
+                    padding:20px;
+                    border:1px solid #dde2e8;
+                    border-radius:12px;
+                    text-align:left;
+                "
+            >
+
+                <h2>
+                    📎 Documents PDF de cette séance
+                </h2>
+
+                <p>
+                    Ajoute ici les documents PDF associés à cette séance.
+                </p>
+
+                <input
+                    id="session-pdf-file"
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    style="
+                        display:block;
+                        width:100%;
+                        margin:12px 0;
+                    "
+                >
+
+                <label
+                    for="session-pdf-title"
+                >
+                    Nom du document
+                </label>
+
+                <input
+                    id="session-pdf-title"
+                    type="text"
+                    placeholder="Ex. Exercices de mathématiques"
+                    style="
+                        display:block;
+                        box-sizing:border-box;
+                        width:100%;
+                        padding:12px;
+                        margin:8px 0 12px;
+                    "
+                >
+
+                <button
+                    onclick="uploadSessionPDF('${session.id}')"
+                >
+                    Ajouter le PDF
+                </button>
+
+                <div
+                    id="session-pdf-status"
+                    style="margin-top:12px;"
+                ></div>
+
+                <div
+                    id="session-pdf-list"
+                    style="margin-top:15px;"
+                >
+                    Chargement des documents…
+                </div>
+
+            </section>
+
+
             <section
                 style="
                     margin-top:20px;
@@ -1235,6 +1310,8 @@ async function showSession(id) {
 
         </div>
     `;
+
+    loadSessionPDFs(id);
 }
 
 
@@ -1600,9 +1677,9 @@ async function editSession(id) {
                         width:100%;
                         padding:12px;
                         margin:8px 0 15px;
-                        text-align:left;
                     "
                 >
+
 
 
                 <label>
@@ -1625,7 +1702,6 @@ async function editSession(id) {
                     Résumé
                 </label>
 
-
                 <textarea
                     id="edit-session-summary"
                     rows="6"
@@ -1643,7 +1719,6 @@ async function editSession(id) {
                     Conclusion
                 </label>
 
-
                 <textarea
                     id="edit-session-conclusion"
                     rows="5"
@@ -1658,18 +1733,13 @@ async function editSession(id) {
 
 
                 <button
-                    onclick="
-                        saveEditedSession('${id}')
-                    "
+                    onclick="saveEditedSession('${id}')"
                 >
                     Enregistrer
                 </button>
 
-
                 <button
-                    onclick="
-                        showSession('${id}')
-                    "
+                    onclick="showSession('${id}')"
                 >
                     Annuler
                 </button>
@@ -1684,9 +1754,7 @@ async function editSession(id) {
 async function saveEditedSession(id) {
 
     const date =
-        document
-            .getElementById("edit-session-date")
-            .value;
+        document.getElementById("edit-session-date").value;
 
     const subject =
         document
@@ -1707,16 +1775,10 @@ async function saveEditedSession(id) {
             .trim();
 
     const durationMinutes =
-        document
-            .getElementById("edit-session-duration")
-            .value;
+        document.getElementById("edit-session-duration").value;
 
     if (!date || !subject) {
-
-        alert(
-            "La date et la matière sont obligatoires."
-        );
-
+        alert("La date et la matière sont obligatoires.");
         return;
     }
 
@@ -1728,14 +1790,14 @@ async function saveEditedSession(id) {
                 subject,
                 summary,
                 conclusion,
-                duration_minutes: durationMinutes ? Number(durationMinutes) : null
+                duration_minutes: durationMinutes
+                    ? Number(durationMinutes)
+                    : null
             })
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -1745,11 +1807,7 @@ async function saveEditedSession(id) {
 
 async function deleteSession(id) {
 
-    if (
-        !confirm(
-            "Supprimer cette séance ?"
-        )
-    ) {
+    if (!confirm("Supprimer cette séance ?")) {
         return;
     }
 
@@ -1760,14 +1818,14 @@ async function deleteSession(id) {
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
     showSessions();
 }
+
+
 /* =========================
    NOTES
 ========================= */
@@ -1782,9 +1840,7 @@ async function showNotes() {
             .order("date", { ascending: false });
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -1811,82 +1867,42 @@ async function showNotes() {
         <div class="dashboard">
 
             <div class="topbar">
-
                 <div>
-
-                    <h1>
-                        Notes
-                    </h1>
-
-                    <p>
-                        ${escapeHTML(currentStudent.name)}
-                    </p>
-
+                    <h1>Notes</h1>
+                    <p>${escapeHTML(currentStudent.name)}</p>
                 </div>
-
 
                 <button onclick="renderStudentPage()">
                     Retour
                 </button>
-
             </div>
-
 
             <div class="average-box">
-
-                <p>
-                    Moyenne générale
-                </p>
-
-                <strong>
-                    ${average}
-                </strong>
-
-                <span>
-                    /20
-                </span>
-
+                <p>Moyenne générale</p>
+                <strong>${average}</strong>
+                <span>/20</span>
             </div>
 
-
             <div class="section-title">
-
-                <h2 class="page-title">
-                    Matières
-                </h2>
-
+                <h2 class="page-title">Matières</h2>
 
                 <button onclick="addNote()">
                     + Ajouter une note
                 </button>
-
             </div>
 
-
             <div class="student-menu">
-
                 ${
                     subjects.length
-
                         ? subjects.map(subject => `
                             <button
-                                onclick="
-                                    showSubjectNotes(
-                                        '${encodeURIComponent(subject)}'
-                                    )
-                                "
+                                onclick="showSubjectNotes('${encodeURIComponent(subject)}')"
                             >
                                 ${escapeHTML(subject)}
                             </button>
                         `).join("")
-
-                        : `
-                            <p>
-                                Aucune note.
-                            </p>
-                        `
+                        : `<p>Aucune note.</p>`
                 }
-
             </div>
 
         </div>
@@ -1896,8 +1912,7 @@ async function showNotes() {
 
 async function showSubjectNotes(encodedSubject) {
 
-    const subject =
-        decodeURIComponent(encodedSubject);
+    const subject = decodeURIComponent(encodedSubject);
 
     const { data: notes, error } =
         await supabaseClient
@@ -1908,9 +1923,7 @@ async function showSubjectNotes(encodedSubject) {
             .order("date", { ascending: false });
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -1918,32 +1931,19 @@ async function showSubjectNotes(encodedSubject) {
         <div class="dashboard">
 
             <div class="topbar">
-
                 <div>
-
-                    <h1>
-                        ${escapeHTML(subject)}
-                    </h1>
-
-                    <p>
-                        Notes
-                    </p>
-
+                    <h1>${escapeHTML(subject)}</h1>
+                    <p>Notes</p>
                 </div>
-
 
                 <button onclick="showNotes()">
                     Retour
                 </button>
-
             </div>
 
-
             <section>
-
                 ${
                     notes && notes.length
-
                         ? notes.map(note => `
                             <div
                                 style="
@@ -1952,42 +1952,25 @@ async function showSubjectNotes(encodedSubject) {
                                     cursor:pointer;
                                     text-align:left;
                                 "
-                                onclick="
-                                    showNote('${note.id}')
-                                "
+                                onclick="showNote('${note.id}')"
                             >
-
                                 <strong>
-                                    ${escapeHTML(
-                                        note.title || "Note"
-                                    )}
+                                    ${escapeHTML(note.title || "Note")}
                                 </strong>
 
-
-                                <p
-                                    style="
-                                        text-align:left;
-                                    "
-                                >
+                                <p style="text-align:left;">
                                     ${formatDate(note.date)}
                                     —
                                     ${Number(note.grade).toFixed(2)}/20
                                 </p>
-
                             </div>
                         `).join("")
-
                         : `
-                            <p
-                                style="
-                                    text-align:left;
-                                "
-                            >
+                            <p style="text-align:left;">
                                 Aucune note dans cette matière.
                             </p>
                         `
                 }
-
             </section>
 
         </div>
@@ -2005,9 +1988,7 @@ async function showNote(id) {
             .single();
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2015,85 +1996,37 @@ async function showNote(id) {
         <div class="dashboard">
 
             <div class="topbar">
-
                 <div>
-
-                    <h1>
-                        ${escapeHTML(
-                            note.title || "Note"
-                        )}
-                    </h1>
-
-                    <p>
-                        ${escapeHTML(
-                            note.subject || ""
-                        )}
-                    </p>
-
+                    <h1>${escapeHTML(note.title || "Note")}</h1>
+                    <p>${escapeHTML(note.subject || "")}</p>
                 </div>
 
-
                 <button
-                    onclick="
-                        showSubjectNotes(
-                            '${encodeURIComponent(
-                                note.subject
-                            )}'
-                        )
-                    "
+                    onclick="showSubjectNotes('${encodeURIComponent(note.subject || "")}')"
                 >
                     Retour
                 </button>
-
             </div>
 
-
             <section>
-
-                <p
-                    style="
-                        text-align:left;
-                    "
-                >
-                    Date :
-                    ${formatDate(note.date)}
+                <p style="text-align:left;">
+                    Date : ${formatDate(note.date)}
                 </p>
 
-
-                <p
-                    style="
-                        margin-top:10px;
-                        text-align:left;
-                    "
-                >
+                <p style="margin-top:10px;text-align:left;">
                     Note :
-                    <strong>
-                        ${Number(note.grade).toFixed(2)}/20
-                    </strong>
+                    <strong>${Number(note.grade).toFixed(2)}/20</strong>
                 </p>
-
             </section>
 
-
             <section>
-
-                <button
-                    onclick="
-                        editNote('${note.id}')
-                    "
-                >
+                <button onclick="editNote('${note.id}')">
                     Modifier
                 </button>
 
-
-                <button
-                    onclick="
-                        deleteNote('${note.id}')
-                    "
-                >
+                <button onclick="deleteNote('${note.id}')">
                     Supprimer
                 </button>
-
             </section>
 
         </div>
@@ -2107,118 +2040,52 @@ function addNote() {
         <div class="dashboard">
 
             <div class="topbar">
-
-                <h1>
-                    Ajouter une note
-                </h1>
-
+                <h1>Ajouter une note</h1>
             </div>
-
 
             <section>
 
-                <label>
-                    Date
-                </label>
-
-
+                <label>Date</label>
                 <input
                     id="note-date"
                     type="date"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;"
                 >
 
-
-                <label>
-                    Matière
-                </label>
-
-
+                <label>Matière</label>
                 <input
                     id="note-subject"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                        text-align:left;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;text-align:left;"
                 >
 
-
-                <label>
-                    Évaluation
-                </label>
-
-
+                <label>Évaluation</label>
                 <input
                     id="note-title"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                        text-align:left;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;text-align:left;"
                 >
 
-
-                <label>
-                    Note
-                </label>
-
-
+                <label>Note</label>
                 <input
                     id="note-grade"
                     type="number"
                     step="0.01"
                     min="0"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;"
                 >
 
-
-                <label>
-                    Sur
-                </label>
-
-
+                <label>Sur</label>
                 <select
                     id="note-max"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;"
                 >
-
-                    <option value="5">
-                        5
-                    </option>
-
-                    <option value="10">
-                        10
-                    </option>
-
-                    <option
-                        value="20"
-                        selected
-                    >
-                        20
-                    </option>
-
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
                 </select>
-
 
                 <button onclick="saveNote()">
                     Enregistrer
                 </button>
-
 
                 <button onclick="showNotes()">
                     Annuler
@@ -2234,64 +2101,31 @@ function addNote() {
 async function saveNote() {
 
     const date =
-        document
-            .getElementById("note-date")
-            .value;
+        document.getElementById("note-date").value;
 
     const subject =
-        document
-            .getElementById("note-subject")
-            .value
-            .trim();
+        document.getElementById("note-subject").value.trim();
 
     const title =
-        document
-            .getElementById("note-title")
-            .value
-            .trim();
+        document.getElementById("note-title").value.trim();
 
     const grade =
-        Number(
-            document
-                .getElementById("note-grade")
-                .value
-        );
+        Number(document.getElementById("note-grade").value);
 
     const max =
-        Number(
-            document
-                .getElementById("note-max")
-                .value
-        );
+        Number(document.getElementById("note-max").value);
 
-    if (
-        !date ||
-        !subject ||
-        !title ||
-        Number.isNaN(grade)
-    ) {
-
-        alert(
-            "Veuillez remplir tous les champs."
-        );
-
+    if (!date || !subject || !title || Number.isNaN(grade)) {
+        alert("Veuillez remplir tous les champs.");
         return;
     }
 
-    if (
-        grade < 0 ||
-        grade > max
-    ) {
-
-        alert(
-            "La note est incorrecte."
-        );
-
+    if (grade < 0 || grade > max) {
+        alert("La note est incorrecte.");
         return;
     }
 
-    const normalized =
-        normalizeGrade(grade, max);
+    const normalized = normalizeGrade(grade, max);
 
     const { error } =
         await supabaseClient
@@ -2305,9 +2139,7 @@ async function saveNote() {
             });
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2325,9 +2157,7 @@ async function editNote(id) {
             .single();
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2335,76 +2165,34 @@ async function editNote(id) {
         <div class="dashboard">
 
             <div class="topbar">
-
-                <h1>
-                    Modifier la note
-                </h1>
-
+                <h1>Modifier la note</h1>
             </div>
-
 
             <section>
 
-                <label>
-                    Date
-                </label>
-
-
+                <label>Date</label>
                 <input
                     id="edit-note-date"
                     type="date"
                     value="${note.date || ""}"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;"
                 >
 
-
-                <label>
-                    Matière
-                </label>
-
-
+                <label>Matière</label>
                 <input
                     id="edit-note-subject"
-                    value="${escapeHTML(
-                        note.subject || ""
-                    )}"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                        text-align:left;
-                    "
+                    value="${escapeHTML(note.subject || "")}"
+                    style="width:100%;padding:12px;margin:8px 0 15px;text-align:left;"
                 >
 
-
-                <label>
-                    Évaluation
-                </label>
-
-
+                <label>Évaluation</label>
                 <input
                     id="edit-note-title"
-                    value="${escapeHTML(
-                        note.title || ""
-                    )}"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                        text-align:left;
-                    "
+                    value="${escapeHTML(note.title || "")}"
+                    style="width:100%;padding:12px;margin:8px 0 15px;text-align:left;"
                 >
 
-
-                <label>
-                    Nouvelle note /20
-                </label>
-
-
+                <label>Nouvelle note /20</label>
                 <input
                     id="edit-note-grade"
                     type="number"
@@ -2412,28 +2200,14 @@ async function editNote(id) {
                     max="20"
                     step="0.01"
                     value="${note.grade}"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:8px 0 15px;
-                    "
+                    style="width:100%;padding:12px;margin:8px 0 15px;"
                 >
 
-
-                <button
-                    onclick="
-                        saveEditedNote('${id}')
-                    "
-                >
+                <button onclick="saveEditedNote('${id}')">
                     Enregistrer
                 </button>
 
-
-                <button
-                    onclick="
-                        showNote('${id}')
-                    "
-                >
+                <button onclick="showNote('${id}')">
                     Annuler
                 </button>
 
@@ -2447,70 +2221,35 @@ async function editNote(id) {
 async function saveEditedNote(id) {
 
     const date =
-        document
-            .getElementById("edit-note-date")
-            .value;
+        document.getElementById("edit-note-date").value;
 
     const subject =
-        document
-            .getElementById("edit-note-subject")
-            .value
-            .trim();
+        document.getElementById("edit-note-subject").value.trim();
 
     const title =
-        document
-            .getElementById("edit-note-title")
-            .value
-            .trim();
+        document.getElementById("edit-note-title").value.trim();
 
     const grade =
-        Number(
-            document
-                .getElementById("edit-note-grade")
-                .value
-        );
+        Number(document.getElementById("edit-note-grade").value);
 
-    if (
-        !date ||
-        !subject ||
-        !title ||
-        Number.isNaN(grade)
-    ) {
-
-        alert(
-            "Veuillez remplir tous les champs."
-        );
-
+    if (!date || !subject || !title || Number.isNaN(grade)) {
+        alert("Veuillez remplir tous les champs.");
         return;
     }
 
-    if (
-        grade < 0 ||
-        grade > 20
-    ) {
-
-        alert(
-            "La note doit être entre 0 et 20."
-        );
-
+    if (grade < 0 || grade > 20) {
+        alert("La note doit être entre 0 et 20.");
         return;
     }
 
     const { error } =
         await supabaseClient
             .from("Notes")
-            .update({
-                date,
-                subject,
-                title,
-                grade
-            })
+            .update({ date, subject, title, grade })
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2520,11 +2259,7 @@ async function saveEditedNote(id) {
 
 async function deleteNote(id) {
 
-    if (
-        !confirm(
-            "Supprimer cette note ?"
-        )
-    ) {
+    if (!confirm("Supprimer cette note ?")) {
         return;
     }
 
@@ -2535,14 +2270,14 @@ async function deleteNote(id) {
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
     showNotes();
 }
+
+
 /* =========================
    PROGRESSION
 ========================= */
@@ -2557,9 +2292,7 @@ async function showProgress() {
             .order("id");
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2567,61 +2300,31 @@ async function showProgress() {
         <div class="dashboard">
 
             <div class="topbar">
-
                 <div>
-
-                    <h1>
-                        Progression
-                    </h1>
-
-                    <p>
-                        ${escapeHTML(currentStudent.name)}
-                    </p>
-
+                    <h1>Progression</h1>
+                    <p>${escapeHTML(currentStudent.name)}</p>
                 </div>
-
 
                 <button onclick="renderStudentPage()">
                     Retour
                 </button>
-
             </div>
 
-
             <div class="section-title">
-
-                <h2 class="page-title">
-                    Suivi de progression
-                </h2>
-
+                <h2 class="page-title">Suivi de progression</h2>
 
                 <button onclick="addProgress()">
                     + Ajouter
                 </button>
-
             </div>
-
 
             ${
                 progress && progress.length
-
                     ? progress.map(item => `
-                        <section
-                            style="
-                                text-align:left;
-                            "
-                        >
-
-                            <h2
-                                style="
-                                    text-align:left;
-                                "
-                            >
-                                ${escapeHTML(
-                                    item.category || ""
-                                )}
+                        <section style="text-align:left;">
+                            <h2 style="text-align:left;">
+                                ${escapeHTML(item.category || "")}
                             </h2>
-
 
                             <p
                                 style="
@@ -2630,55 +2333,24 @@ async function showProgress() {
                                     direction:ltr;
                                     text-indent:0;
                                 "
-                            >${escapeHTML(
-                                item.comment || ""
-                            )}</p>
+                            >${escapeHTML(item.comment || "")}</p>
 
-
-                            <div
-                                style="
-                                    margin-top:15px;
-                                    text-align:left;
-                                "
-                            >
-
-                                <button
-                                    onclick="
-                                        editProgress(
-                                            '${item.id}'
-                                        )
-                                    "
-                                >
+                            <div style="margin-top:15px;text-align:left;">
+                                <button onclick="editProgress('${item.id}')">
                                     Modifier
                                 </button>
 
-
-                                <button
-                                    onclick="
-                                        deleteProgress(
-                                            '${item.id}'
-                                        )
-                                    "
-                                >
+                                <button onclick="deleteProgress('${item.id}')">
                                     Supprimer
                                 </button>
-
                             </div>
-
                         </section>
                     `).join("")
-
                     : `
                         <section>
-
-                            <p
-                                style="
-                                    text-align:left;
-                                "
-                            >
+                            <p style="text-align:left;">
                                 Aucune progression enregistrée.
                             </p>
-
                         </section>
                     `
             }
@@ -2694,46 +2366,27 @@ function addProgress() {
         <div class="dashboard">
 
             <div class="topbar">
-
-                <h1>
-                    Ajouter une progression
-                </h1>
-
+                <h1>Ajouter une progression</h1>
             </div>
-
 
             <section>
 
                 <input
                     id="progress-category"
                     placeholder="Catégorie"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left;
-                    "
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left;"
                 >
-
 
                 <textarea
                     id="progress-comment"
                     placeholder="Détail"
                     rows="6"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left !important;
-                        direction:ltr;
-                    "
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left !important;direction:ltr;"
                 ></textarea>
-
 
                 <button onclick="saveProgress()">
                     Enregistrer
                 </button>
-
 
                 <button onclick="showProgress()">
                     Annuler
@@ -2749,23 +2402,13 @@ function addProgress() {
 async function saveProgress() {
 
     const category =
-        document
-            .getElementById("progress-category")
-            .value
-            .trim();
+        document.getElementById("progress-category").value.trim();
 
     const comment =
-        document
-            .getElementById("progress-comment")
-            .value
-            .trim();
+        document.getElementById("progress-comment").value.trim();
 
     if (!category) {
-
-        alert(
-            "La catégorie est obligatoire."
-        );
-
+        alert("La catégorie est obligatoire.");
         return;
     }
 
@@ -2779,9 +2422,7 @@ async function saveProgress() {
             });
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2799,9 +2440,7 @@ async function editProgress(id) {
             .single();
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2809,57 +2448,28 @@ async function editProgress(id) {
         <div class="dashboard">
 
             <div class="topbar">
-
-                <h1>
-                    Modifier la progression
-                </h1>
-
+                <h1>Modifier la progression</h1>
             </div>
-
 
             <section>
 
                 <input
                     id="edit-progress-category"
-                    value="${escapeHTML(
-                        item.category || ""
-                    )}"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left;
-                    "
+                    value="${escapeHTML(item.category || "")}"
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left;"
                 >
-
 
                 <textarea
                     id="edit-progress-comment"
                     rows="6"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left !important;
-                        direction:ltr;
-                    "
-                >${escapeHTML(
-                    item.comment || ""
-                )}</textarea>
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left !important;direction:ltr;"
+                >${escapeHTML(item.comment || "")}</textarea>
 
-
-                <button
-                    onclick="
-                        saveEditedProgress('${id}')
-                    "
-                >
+                <button onclick="saveEditedProgress('${id}')">
                     Enregistrer
                 </button>
 
-
-                <button
-                    onclick="showProgress()"
-                >
+                <button onclick="showProgress()">
                     Annuler
                 </button>
 
@@ -2873,44 +2483,28 @@ async function editProgress(id) {
 async function saveEditedProgress(id) {
 
     const category =
-        document
-            .getElementById("edit-progress-category")
-            .value
-            .trim();
+        document.getElementById("edit-progress-category").value.trim();
 
     const comment =
-        document
-            .getElementById("edit-progress-comment")
-            .value
-            .trim();
+        document.getElementById("edit-progress-comment").value.trim();
 
     const { error } =
         await supabaseClient
             .from("Progress")
-            .update({
-                category,
-                comment
-            })
+            .update({ category, comment })
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
     showProgress();
 }
 
-
 async function deleteProgress(id) {
 
-    if (
-        !confirm(
-            "Supprimer cette progression ?"
-        )
-    ) {
+    if (!confirm("Supprimer cette progression ?")) {
         return;
     }
 
@@ -2921,9 +2515,7 @@ async function deleteProgress(id) {
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2945,9 +2537,7 @@ async function showDifficulties() {
             .order("id");
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -2955,61 +2545,31 @@ async function showDifficulties() {
         <div class="dashboard">
 
             <div class="topbar">
-
                 <div>
-
-                    <h1>
-                        Difficultés
-                    </h1>
-
-                    <p>
-                        ${escapeHTML(currentStudent.name)}
-                    </p>
-
+                    <h1>Difficultés</h1>
+                    <p>${escapeHTML(currentStudent.name)}</p>
                 </div>
-
 
                 <button onclick="renderStudentPage()">
                     Retour
                 </button>
-
             </div>
 
-
             <div class="section-title">
-
-                <h2 class="page-title">
-                    Points à travailler
-                </h2>
-
+                <h2 class="page-title">Points à travailler</h2>
 
                 <button onclick="addDifficulty()">
                     + Ajouter
                 </button>
-
             </div>
-
 
             ${
                 difficulties && difficulties.length
-
                     ? difficulties.map(item => `
-                        <section
-                            style="
-                                text-align:left;
-                            "
-                        >
-
-                            <h2
-                                style="
-                                    text-align:left;
-                                "
-                            >
-                                ${escapeHTML(
-                                    item.title || ""
-                                )}
+                        <section style="text-align:left;">
+                            <h2 style="text-align:left;">
+                                ${escapeHTML(item.title || "")}
                             </h2>
-
 
                             <p
                                 style="
@@ -3018,55 +2578,24 @@ async function showDifficulties() {
                                     direction:ltr;
                                     text-indent:0;
                                 "
-                            >${escapeHTML(
-                                item.detail || ""
-                            )}</p>
+                            >${escapeHTML(item.detail || "")}</p>
 
-
-                            <div
-                                style="
-                                    margin-top:15px;
-                                    text-align:left;
-                                "
-                            >
-
-                                <button
-                                    onclick="
-                                        editDifficulty(
-                                            '${item.id}'
-                                        )
-                                    "
-                                >
+                            <div style="margin-top:15px;text-align:left;">
+                                <button onclick="editDifficulty('${item.id}')">
                                     Modifier
                                 </button>
 
-
-                                <button
-                                    onclick="
-                                        deleteDifficulty(
-                                            '${item.id}'
-                                        )
-                                    "
-                                >
+                                <button onclick="deleteDifficulty('${item.id}')">
                                     Supprimer
                                 </button>
-
                             </div>
-
                         </section>
                     `).join("")
-
                     : `
                         <section>
-
-                            <p
-                                style="
-                                    text-align:left;
-                                "
-                            >
+                            <p style="text-align:left;">
                                 Aucune difficulté enregistrée.
                             </p>
-
                         </section>
                     `
             }
@@ -3082,51 +2611,30 @@ function addDifficulty() {
         <div class="dashboard">
 
             <div class="topbar">
-
-                <h1>
-                    Ajouter une difficulté
-                </h1>
-
+                <h1>Ajouter une difficulté</h1>
             </div>
 
-
             <section>
-
                 <input
                     id="difficulty-title"
                     placeholder="Titre"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left;
-                    "
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left;"
                 >
-
 
                 <textarea
                     id="difficulty-detail"
                     placeholder="Détail"
                     rows="6"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left !important;
-                        direction:ltr;
-                    "
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left !important;direction:ltr;"
                 ></textarea>
-
 
                 <button onclick="saveDifficulty()">
                     Enregistrer
                 </button>
 
-
                 <button onclick="showDifficulties()">
                     Annuler
                 </button>
-
             </section>
 
         </div>
@@ -3137,23 +2645,13 @@ function addDifficulty() {
 async function saveDifficulty() {
 
     const title =
-        document
-            .getElementById("difficulty-title")
-            .value
-            .trim();
+        document.getElementById("difficulty-title").value.trim();
 
     const detail =
-        document
-            .getElementById("difficulty-detail")
-            .value
-            .trim();
+        document.getElementById("difficulty-detail").value.trim();
 
     if (!title) {
-
-        alert(
-            "Le titre est obligatoire."
-        );
-
+        alert("Le titre est obligatoire.");
         return;
     }
 
@@ -3167,9 +2665,7 @@ async function saveDifficulty() {
             });
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -3187,9 +2683,7 @@ async function editDifficulty(id) {
             .single();
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -3197,60 +2691,29 @@ async function editDifficulty(id) {
         <div class="dashboard">
 
             <div class="topbar">
-
-                <h1>
-                    Modifier la difficulté
-                </h1>
-
+                <h1>Modifier la difficulté</h1>
             </div>
 
-
             <section>
-
                 <input
                     id="edit-difficulty-title"
-                    value="${escapeHTML(
-                        item.title || ""
-                    )}"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left;
-                    "
+                    value="${escapeHTML(item.title || "")}"
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left;"
                 >
-
 
                 <textarea
                     id="edit-difficulty-detail"
                     rows="6"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin-bottom:15px;
-                        text-align:left !important;
-                        direction:ltr;
-                    "
-                >${escapeHTML(
-                    item.detail || ""
-                )}</textarea>
+                    style="width:100%;padding:12px;margin-bottom:15px;text-align:left !important;direction:ltr;"
+                >${escapeHTML(item.detail || "")}</textarea>
 
-
-                <button
-                    onclick="
-                        saveEditedDifficulty('${id}')
-                    "
-                >
+                <button onclick="saveEditedDifficulty('${id}')">
                     Enregistrer
                 </button>
 
-
-                <button
-                    onclick="showDifficulties()"
-                >
+                <button onclick="showDifficulties()">
                     Annuler
                 </button>
-
             </section>
 
         </div>
@@ -3261,30 +2724,19 @@ async function editDifficulty(id) {
 async function saveEditedDifficulty(id) {
 
     const title =
-        document
-            .getElementById("edit-difficulty-title")
-            .value
-            .trim();
+        document.getElementById("edit-difficulty-title").value.trim();
 
     const detail =
-        document
-            .getElementById("edit-difficulty-detail")
-            .value
-            .trim();
+        document.getElementById("edit-difficulty-detail").value.trim();
 
     const { error } =
         await supabaseClient
             .from("Difficulties")
-            .update({
-                title,
-                detail
-            })
+            .update({ title, detail })
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
@@ -3294,11 +2746,7 @@ async function saveEditedDifficulty(id) {
 
 async function deleteDifficulty(id) {
 
-    if (
-        !confirm(
-            "Supprimer cette difficulté ?"
-        )
-    ) {
+    if (!confirm("Supprimer cette difficulté ?")) {
         return;
     }
 
@@ -3309,14 +2757,375 @@ async function deleteDifficulty(id) {
             .eq("id", id);
 
     if (error) {
-
         alert(error.message);
-
         return;
     }
 
     showDifficulties();
 }
+
+
+/* =========================
+   DOCUMENTS PDF DES SÉANCES
+========================= */
+
+/*
+   Configuration attendue dans Supabase :
+   - table "SessionDocuments"
+   - bucket privé "session-pdfs"
+
+   Colonnes de SessionDocuments :
+   id, session_id, student_id, title,
+   storage_path, created_at
+*/
+
+
+const PDF_BUCKET = "session-pdfs";
+const PDF_TABLE = "SessionDocuments";
+const PDF_MAX_SIZE = 10 * 1024 * 1024;
+
+
+/* Ajouter un PDF à une séance */
+
+async function uploadSessionPDF(sessionId) {
+
+    const fileInput =
+        document.getElementById("session-pdf-file");
+
+    const titleInput =
+        document.getElementById("session-pdf-title");
+
+    const status =
+        document.getElementById("session-pdf-status");
+
+    const file = fileInput?.files?.[0];
+
+    const title =
+        titleInput?.value.trim() || file?.name || "Document PDF";
+
+    if (!file) {
+        alert("Sélectionne un fichier PDF.");
+        return;
+    }
+
+    const isPDF =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+
+    if (!isPDF) {
+        alert("Seuls les fichiers PDF sont acceptés.");
+        return;
+    }
+
+    if (file.size > PDF_MAX_SIZE) {
+        alert("Le PDF ne doit pas dépasser 10 Mo.");
+        return;
+    }
+
+    if (!currentStudent?.id) {
+        alert("Aucun élève sélectionné.");
+        return;
+    }
+
+    const {
+        data: { user },
+        error: userError
+    } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+        alert("Tu dois être connecté pour ajouter un document.");
+        return;
+    }
+
+    if (status) {
+        status.textContent = "Envoi du PDF en cours…";
+    }
+
+    const safeName =
+        file.name
+            .normalize("NFKD")
+            .replace(/[^a-zA-Z0-9._-]/g, "_")
+            .slice(-100) || "document.pdf";
+
+    const storagePath =
+        `user.id/{sessionId}/Date.now()-{safeName}`;
+
+    const { error: uploadError } =
+        await supabaseClient
+            .storage
+            .from(PDF_BUCKET)
+            .upload(storagePath, file, {
+                contentType: "application/pdf",
+                upsert: false
+            });
+
+    if (uploadError) {
+        if (status) status.textContent = "";
+        alert("Impossible d'envoyer le PDF : " + uploadError.message);
+        return;
+    }
+
+    const { error: insertError } =
+        await supabaseClient
+            .from(PDF_TABLE)
+            .insert({
+                session_id: sessionId,
+                student_id: currentStudent.id,
+                title,
+                storage_path: storagePath
+            });
+
+    if (insertError) {
+
+        await supabaseClient
+            .storage
+            .from(PDF_BUCKET)
+            .remove([storagePath]);
+
+        if (status) status.textContent = "";
+
+        alert("Le PDF a été envoyé, mais son enregistrement a échoué : " + insertError.message);
+        return;
+    }
+
+    if (fileInput) fileInput.value = "";
+    if (titleInput) titleInput.value = "";
+
+    if (status) status.textContent = "PDF ajouté avec succès.";
+
+    await loadSessionPDFs(sessionId);
+}
+
+
+/* Afficher les PDF d'une séance */
+
+async function loadSessionPDFs(sessionId) {
+
+    const container =
+        document.getElementById("session-pdf-list");
+
+    if (!container) return;
+
+    container.innerHTML = "<p>Chargement des documents…</p>";
+
+    const { data: documents, error } =
+        await supabaseClient
+            .from(PDF_TABLE)
+            .select("*")
+            .eq("session_id", sessionId)
+            .eq("student_id", currentStudent.id)
+            .order("created_at", { ascending: false });
+
+    if (error) {
+        container.innerHTML =
+            "<p>Impossible de charger les PDF.</p>";
+
+        console.error(error);
+        return;
+    }
+
+    if (!documents || documents.length === 0) {
+        container.innerHTML =
+            "<p>Aucun PDF associé à cette séance.</p>";
+
+        return;
+    }
+
+    container.innerHTML = documents.map(document => `
+        <div
+            style="
+                display:flex;
+                flex-wrap:wrap;
+                align-items:center;
+                justify-content:space-between;
+                gap:10px;
+                padding:12px 0;
+                border-bottom:1px solid #dde2e8;
+            "
+        >
+            <div style="min-width:0;flex:1;text-align:left;">
+                <strong>${escapeHTML(document.title)}</strong>
+
+                <p style="font-size:13px;margin-top:4px;">
+                    ${document.created_at
+                        ? formatDate(document.created_at.slice(0, 10))
+                        : ""}
+                </p>
+            </div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button
+                    onclick="openSessionPDF('${document.id}')"
+                >
+                    Ouvrir
+                </button>
+
+                <button
+                    onclick="deleteSessionPDF('document.id','{sessionId}')"
+                >
+                    Supprimer
+                </button>
+            </div>
+        </div>
+    `).join("");
+}
+
+
+/* Ouvrir un PDF privé avec un lien temporaire */
+
+async function openSessionPDF(documentId) {
+
+    const { data: document, error } =
+        await supabaseClient
+            .from(PDF_TABLE)
+            .select("id, title, storage_path, student_id")
+            .eq("id", documentId)
+            .eq("student_id", currentStudent.id)
+            .single();
+
+    if (error || !document) {
+        alert("Impossible de retrouver ce document.");
+        return;
+    }
+
+    const { data, error: urlError } =
+        await supabaseClient
+            .storage
+            .from(PDF_BUCKET)
+            .createSignedUrl(document.storage_path, 60);
+
+    if (urlError || !data?.signedUrl) {
+        alert("Impossible de créer le lien du PDF.");
+        return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
+
+
+/* Supprimer un PDF */
+
+async function deleteSessionPDF(documentId, sessionId) {
+
+    if (!confirm("Supprimer ce PDF ? Cette action est définitive.")) {
+        return;
+    }
+
+    const { data: document, error: findError } =
+        await supabaseClient
+            .from(PDF_TABLE)
+            .select("id, storage_path, student_id")
+            .eq("id", documentId)
+            .eq("student_id", currentStudent.id)
+            .single();
+
+    if (findError || !document) {
+        alert("Impossible de retrouver ce document.");
+        return;
+    }
+
+    const { error: storageError } =
+        await supabaseClient
+            .storage
+            .from(PDF_BUCKET)
+            .remove([document.storage_path]);
+
+    if (storageError) {
+        alert("Impossible de supprimer le fichier : " + storageError.message);
+        return;
+    }
+
+    const { error: deleteError } =
+        await supabaseClient
+            .from(PDF_TABLE)
+            .delete()
+            .eq("id", documentId)
+            .eq("student_id", currentStudent.id);
+
+    if (deleteError) {
+        alert("Le fichier a été supprimé, mais pas son enregistrement : " + deleteError.message);
+        return;
+    }
+
+    await loadSessionPDFs(sessionId);
+}
+
+
+/* Afficher tous les PDF des séances de l'élève */
+
+async function showAllSubjectDocuments() {
+
+    if (!currentStudent?.id) {
+        alert("Aucun élève sélectionné.");
+        return;
+    }
+
+    const { data: documents, error } =
+        await supabaseClient
+            .from(PDF_TABLE)
+            .select("*")
+            .eq("student_id", currentStudent.id)
+            .order("created_at", { ascending: false });
+
+    if (error) {
+        alert("Impossible de charger les documents : " + error.message);
+        return;
+    }
+
+    app().innerHTML = `
+        <div class="dashboard">
+
+            <div class="topbar">
+                <div>
+                    <h1>Documents PDF</h1>
+                    <p>${escapeHTML(currentStudent.name)}</p>
+                </div>
+
+                <button onclick="showSessions()">
+                    Retour aux séances
+                </button>
+            </div>
+
+            <section>
+                ${
+                    documents && documents.length
+                        ? documents.map(document => `
+                            <div
+                                style="
+                                    display:flex;
+                                    flex-wrap:wrap;
+                                    align-items:center;
+                                    justify-content:space-between;
+                                    gap:10px;
+                                    padding:12px 0;
+                                    border-bottom:1px solid #dde2e8;
+                                "
+                            >
+                                <div style="text-align:left;flex:1;">
+                                    <strong>${escapeHTML(document.title)}</strong>
+                                    <p style="font-size:13px;margin-top:4px;">
+                                        Ajouté le ${
+                                            document.created_at
+                                                ? formatDate(document.created_at.slice(0, 10))
+                                                : ""
+                                        }
+                                    </p>
+                                </div>
+
+                                <button onclick="openSessionPDF('${document.id}')">
+                                    Ouvrir le PDF
+                                </button>
+                            </div>
+                        `).join("")
+                        : `<p>Aucun document PDF enregistré.</p>`
+                }
+            </section>
+
+        </div>
+    `;
+}
+
+
 /* =========================
    DÉCONNEXION
 ========================= */
@@ -3341,14 +3150,10 @@ async function startApp() {
         data: { session }
     } = await supabaseClient.auth.getSession();
 
-
     if (!session) {
-
         showHome();
-
         return;
     }
-
 
     const { data: profile } =
         await supabaseClient
@@ -3357,18 +3162,10 @@ async function startApp() {
             .eq("id", session.user.id)
             .single();
 
-
-    if (
-        profile &&
-        profile.role === "teacher"
-    ) {
-
+    if (profile && profile.role === "teacher") {
         showDashboard();
-
     } else {
-
         await supabaseClient.auth.signOut();
-
         showHome();
     }
 }
