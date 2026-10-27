@@ -32,6 +32,7 @@
   let lesson = null;
   let documents = [];
   let search = "";
+  let editingLessonId = null;
 
   // ============================================
   // OUTILS
@@ -46,8 +47,6 @@
       "'": "&#39;"
     })[character]);
 
-  // NOUVEAU : affichage lisible des durées.
-  // Les valeurs restent enregistrées en minutes dans Supabase.
   function formatDuration(minutes) {
     if (
       minutes === null ||
@@ -123,7 +122,14 @@
     `;
   }
 
-  function field(name, label, type = "text", required = true) {
+  // Champ de formulaire avec possibilité de préremplir une valeur.
+  function field(
+    name,
+    label,
+    type = "text",
+    required = true,
+    value = ""
+  ) {
     return `
       <div class="form-group" style="margin:14px 0">
         <label for="${esc(name)}"
@@ -134,6 +140,7 @@
           id="${esc(name)}"
           name="${esc(name)}"
           type="${esc(type)}"
+          value="${esc(value)}"
           ${required ? "required" : ""}
           style="box-sizing:border-box;width:100%;padding:12px"
         >
@@ -173,6 +180,7 @@
             : ""
         }
       </header>
+
       <main class="dashboard-content"
         style="max-width:1100px;margin:auto;padding:24px">
         <div id="notice" hidden></div>
@@ -200,6 +208,7 @@
         <form id="login-form">
           ${field("email", "Adresse e-mail", "email")}
           ${field("password", "Mot de passe", "password")}
+
           <button type="submit" style="width:100%">
             Se connecter
           </button>
@@ -227,6 +236,7 @@
             "Mot de passe (6 caractères minimum)",
             "password"
           )}
+
           <button type="submit">Créer mon compte</button>
         </form>
 
@@ -336,6 +346,7 @@
     lesson = null;
     documents = [];
     search = "";
+    editingLessonId = null;
 
     showLogin();
   }
@@ -366,6 +377,7 @@
     lesson = null;
     lessons = [];
     documents = [];
+    editingLessonId = null;
 
     renderStudents();
   }
@@ -476,6 +488,8 @@
     }
 
     student = selectedStudent;
+    lesson = null;
+    editingLessonId = null;
     loading("Chargement des séances...");
 
     const { data, error } = await db
@@ -499,7 +513,7 @@
   }
 
   // ============================================
-  // SÉANCES
+  // SÉANCES : AFFICHAGE ET MODIFICATION
   // ============================================
 
   function renderStudent() {
@@ -507,6 +521,10 @@
       renderStudents();
       return;
     }
+
+    const editingLesson = lessons.find(
+      item => String(item.id) === String(editingLessonId)
+    ) || null;
 
     shell(`
       ${btn("back-students", "← Tous les élèves")}
@@ -518,48 +536,103 @@
       <p>Classe : ${esc(student.class || "Non renseignée")}</p>
 
       <section class="card">
-        <h3>Ajouter une séance</h3>
+        <h3>
+          ${editingLesson ? "Modifier la séance" : "Ajouter une séance"}
+        </h3>
+
         <form id="lesson-form">
-          ${field("title", "Titre")}
-          ${field("subject", "Matière")}
-          ${field("lesson_date", "Date", "date")}
-          ${field("duration_minutes", "Durée en minutes", "number", false)}
+          ${field(
+            "title",
+            "Titre",
+            "text",
+            true,
+            editingLesson?.title || ""
+          )}
+
+          ${field(
+            "subject",
+            "Matière",
+            "text",
+            true,
+            editingLesson?.subject || ""
+          )}
+
+          ${field(
+            "lesson_date",
+            "Date",
+            "date",
+            true,
+            editingLesson?.lesson_date || ""
+          )}
+
+          ${field(
+            "duration_minutes",
+            "Durée en minutes",
+            "number",
+            false,
+            editingLesson?.duration_minutes ?? ""
+          )}
 
           <p style="font-size:13px;color:#64748b">
             Exemples : 30 pour 30 minutes, 60 pour 1 heure,
             90 pour 1 h 30.
           </p>
 
-          <div class="form-group">
+          <div class="form-group" style="margin:14px 0">
             <label for="content">Contenu</label>
-            <textarea id="content" name="content" rows="5"
-              style="width:100%;box-sizing:border-box"></textarea>
+            <textarea
+              id="content"
+              name="content"
+              rows="5"
+              style="width:100%;box-sizing:border-box"
+            >${esc(editingLesson?.content || "")}</textarea>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" style="margin:14px 0">
             <label for="conclusion">Conclusion</label>
-            <textarea id="conclusion" name="conclusion" rows="3"
-              style="width:100%;box-sizing:border-box"></textarea>
+            <textarea
+              id="conclusion"
+              name="conclusion"
+              rows="3"
+              style="width:100%;box-sizing:border-box"
+            >${esc(editingLesson?.conclusion || "")}</textarea>
           </div>
 
-          <button type="submit">Enregistrer la séance</button>
+          <button type="submit">
+            ${
+              editingLesson
+                ? "Enregistrer les modifications"
+                : "Enregistrer la séance"
+            }
+          </button>
+
+          ${
+            editingLesson
+              ? btn("cancel-edit-lesson", "Annuler la modification")
+              : ""
+          }
         </form>
       </section>
 
       <section class="card">
         <h3>Mes séances</h3>
+
         <div style="display:grid;grid-template-columns:
           repeat(auto-fit,minmax(230px,1fr));gap:14px">
+
           ${lessons.map(l => `
             <article class="lesson-card"
               style="padding:18px;border:1px solid #e8e5f2;
               border-radius:15px">
+
               <h3>${esc(l.title)}</h3>
               <p>Matière : ${esc(l.subject || "Non renseignée")}</p>
               <p>Date : ${esc(l.lesson_date || "Non renseignée")}</p>
               <p>Durée : ${esc(formatDuration(l.duration_minutes))}</p>
               <p>${esc((l.content || "").slice(0, 150))}</p>
+
               ${btn("open-lesson", "Voir la séance", l.id)}
+              ${btn("edit-lesson", "✏️ Modifier", l.id)}
               ${btn("delete-lesson", "Supprimer", l.id)}
             </article>
           `).join("") || "<p>Aucune séance enregistrée.</p>"}
@@ -609,15 +682,69 @@
       class: student.class || ""
     };
 
-    const { error } = await db.from(LESSONS).insert(record);
+    const wasEditing = editingLessonId !== null;
+    let result;
 
-    if (error) {
-      fail("Enregistrement de la séance impossible", error);
+    if (wasEditing) {
+      // Modification de la séance existante dans Supabase.
+      result = await db
+        .from(LESSONS)
+        .update(record)
+        .eq("id", editingLessonId)
+        .eq("student_id", student.id);
+    } else {
+      // Création d'une nouvelle séance.
+      result = await db
+        .from(LESSONS)
+        .insert(record);
+    }
+
+    if (result.error) {
+      fail(
+        wasEditing
+          ? "Modification de la séance impossible"
+          : "Enregistrement de la séance impossible",
+        result.error
+      );
       return;
     }
 
+    editingLessonId = null;
+
     await openStudent(student.id);
-    notice("Séance enregistrée.");
+
+    notice(
+      wasEditing
+        ? "Séance modifiée avec succès."
+        : "Séance enregistrée."
+    );
+  }
+
+  function editLesson(id) {
+    const selectedLesson = lessons.find(
+      item => String(item.id) === String(id)
+    );
+
+    if (!selectedLesson) {
+      notice("Séance introuvable. Réactualise la page.", true);
+      return;
+    }
+
+    editingLessonId = selectedLesson.id;
+    lesson = null;
+    documents = [];
+
+    renderStudent();
+
+    document.getElementById("lesson-form")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  function cancelEditLesson() {
+    editingLessonId = null;
+    renderStudent();
   }
 
   async function deleteLesson(id) {
@@ -643,6 +770,8 @@
       fail("Suppression de la séance impossible", error);
       return;
     }
+
+    editingLessonId = null;
 
     await openStudent(student.id);
     notice("Séance supprimée.");
@@ -699,10 +828,13 @@
         <p style="white-space:pre-wrap">${esc(
           lesson.conclusion || "Aucune conclusion."
         )}</p>
+
+        ${btn("edit-lesson", "✏️ Modifier cette séance", lesson.id)}
       </section>
 
       <section class="card">
         <h3>Documents PDF</h3>
+
         <form id="pdf-form">
           <div class="form-group">
             <label for="pdf">Choisir un fichier PDF</label>
@@ -714,6 +846,7 @@
               required
             >
           </div>
+
           <button type="submit">Envoyer le PDF</button>
         </form>
 
@@ -939,6 +1072,7 @@
           break;
 
         case "back-students":
+          editingLessonId = null;
           student = null;
           lesson = null;
           lessons = [];
@@ -948,6 +1082,14 @@
 
         case "open-lesson":
           await openLesson(id);
+          break;
+
+        case "edit-lesson":
+          editLesson(id);
+          break;
+
+        case "cancel-edit-lesson":
+          cancelEditLesson();
           break;
 
         case "delete-lesson":
@@ -1000,8 +1142,10 @@
       <article class="student-card"
         style="padding:20px;border:1px solid #e8e5f2;
         border-radius:16px;background:white">
+
         <h3>${esc(s.name)}</h3>
         <p>Classe : ${esc(s.class || "Non renseignée")}</p>
+
         ${btn("open-student", "Ouvrir l'espace", s.id)}
         ${btn("delete-student", "Supprimer", s.id)}
       </article>
@@ -1072,6 +1216,7 @@
           lessons = [];
           documents = [];
           search = "";
+          editingLessonId = null;
           showLogin();
         }
       });
