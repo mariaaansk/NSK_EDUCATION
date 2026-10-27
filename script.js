@@ -46,6 +46,45 @@
       "'": "&#39;"
     })[character]);
 
+  // NOUVEAU : affichage lisible des durées.
+  // Les valeurs restent enregistrées en minutes dans Supabase.
+  function formatDuration(minutes) {
+    if (
+      minutes === null ||
+      minutes === undefined ||
+      String(minutes).trim() === ""
+    ) {
+      return "Non renseignée";
+    }
+
+    const value = Number(minutes);
+
+    if (!Number.isFinite(value) || value < 0) {
+      return "Non renseignée";
+    }
+
+    if (!Number.isInteger(value)) {
+      return `${value} minutes`;
+    }
+
+    if (value === 0) {
+      return "0 minute";
+    }
+
+    const hours = Math.floor(value / 60);
+    const remainingMinutes = value % 60;
+
+    if (hours === 0) {
+      return `${value} ${value === 1 ? "minute" : "minutes"}`;
+    }
+
+    if (remainingMinutes === 0) {
+      return `${hours} ${hours === 1 ? "heure" : "heures"}`;
+    }
+
+    return `${hours} h ${remainingMinutes}`;
+  }
+
   function notice(message, isError = false) {
     let box = document.getElementById("notice");
 
@@ -102,8 +141,6 @@
     `;
   }
 
-  // CORRECTION : l'identifiant est maintenant un paramètre dédié.
-  // Tous les boutons utilisent la même fonction.
   function btn(action, label, id = null, extra = "") {
     const idAttribute = id !== null
       ? `data-id="${esc(id)}"`
@@ -241,7 +278,10 @@
     const password = form.elements.password.value;
 
     if (password.length < 6) {
-      notice("Le mot de passe doit contenir au moins 6 caractères.", true);
+      notice(
+        "Le mot de passe doit contenir au moins 6 caractères.",
+        true
+      );
       return;
     }
 
@@ -314,7 +354,10 @@
 
     if (error) {
       renderStudents();
-      notice("Chargement des élèves impossible : " + error.message, true);
+      notice(
+        "Chargement des élèves impossible : " + error.message,
+        true
+      );
       return;
     }
 
@@ -480,7 +523,12 @@
           ${field("title", "Titre")}
           ${field("subject", "Matière")}
           ${field("lesson_date", "Date", "date")}
-          ${field("duration_minutes", "Durée en minutes", "number")}
+          ${field("duration_minutes", "Durée en minutes", "number", false)}
+
+          <p style="font-size:13px;color:#64748b">
+            Exemples : 30 pour 30 minutes, 60 pour 1 heure,
+            90 pour 1 h 30.
+          </p>
 
           <div class="form-group">
             <label for="content">Contenu</label>
@@ -509,6 +557,7 @@
               <h3>${esc(l.title)}</h3>
               <p>Matière : ${esc(l.subject || "Non renseignée")}</p>
               <p>Date : ${esc(l.lesson_date || "Non renseignée")}</p>
+              <p>Durée : ${esc(formatDuration(l.duration_minutes))}</p>
               <p>${esc((l.content || "").slice(0, 150))}</p>
               ${btn("open-lesson", "Voir la séance", l.id)}
               ${btn("delete-lesson", "Supprimer", l.id)}
@@ -532,11 +581,28 @@
       return;
     }
 
+    const durationValue =
+      form.elements.duration_minutes.value.trim();
+
+    if (
+      durationValue !== "" &&
+      (
+        !Number.isFinite(Number(durationValue)) ||
+        Number(durationValue) < 0
+      )
+    ) {
+      notice(
+        "La durée doit être un nombre positif de minutes.",
+        true
+      );
+      return;
+    }
+
     const record = {
       title,
       subject: form.elements.subject.value.trim(),
       lesson_date: form.elements.lesson_date.value || null,
-      duration_minutes: form.elements.duration_minutes.value || null,
+      duration_minutes: durationValue === "" ? null : durationValue,
       content: form.elements.content.value.trim(),
       conclusion: form.elements.conclusion.value.trim(),
       student_id: student.id,
@@ -622,6 +688,7 @@
         <h2>${esc(lesson.title)}</h2>
         <p>Matière : ${esc(lesson.subject || "Non renseignée")}</p>
         <p>Date : ${esc(lesson.lesson_date || "Non renseignée")}</p>
+        <p>Durée : ${esc(formatDuration(lesson.duration_minutes))}</p>
 
         <h3>Contenu</h3>
         <p style="white-space:pre-wrap">${esc(
